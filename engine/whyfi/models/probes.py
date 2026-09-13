@@ -1,4 +1,4 @@
-﻿"""Structured models for WHYFI connectivity probes."""
+"""Structured models for WHYFI connectivity probes."""
 
 from dataclasses import dataclass, field
 
@@ -15,6 +15,7 @@ class PingResult:
     min_latency_ms: float | None = None
     average_latency_ms: float | None = None
     max_latency_ms: float | None = None
+    jitter_ms: float | None = None
     error: str | None = None
 
 

@@ -1,4 +1,4 @@
-﻿"""Windows ICMP ping diagnostics for WHYFI."""
+"""Windows ICMP ping diagnostics for WHYFI."""
 
 from __future__ import annotations
 
@@ -31,6 +31,26 @@ def _extract_latencies(output: str) -> list[float]:
         latencies.append(value)
 
     return latencies
+
+
+def _calculate_jitter(latencies: list[float]) -> float | None:
+    """Calculate average latency variation between consecutive replies."""
+
+    if len(latencies) < 2:
+        return None
+
+    differences = [
+        abs(current - previous)
+        for previous, current in zip(
+            latencies,
+            latencies[1:],
+        )
+    ]
+
+    return round(
+        sum(differences) / len(differences),
+        2,
+    )
 
 
 def ping_host(
@@ -111,6 +131,10 @@ def ping_host(
         packets_received=packets_received,
         packet_loss_percent=packet_loss_percent,
         min_latency_ms=min(latencies),
-        average_latency_ms=round(sum(latencies) / len(latencies), 2),
+        average_latency_ms=round(
+            sum(latencies) / len(latencies),
+            2,
+        ),
         max_latency_ms=max(latencies),
+        jitter_ms=_calculate_jitter(latencies),
     )
