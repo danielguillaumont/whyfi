@@ -6,6 +6,7 @@ from whyfi.diagnostics.common.dns import check_dns
 from whyfi.diagnostics.common.internet import check_internet_reachability
 from whyfi.diagnostics.windows.ping import ping_host
 from whyfi.diagnostics.windows.primary import get_primary_connection
+from whyfi.diagnostics.windows.wifi import get_wifi_connection
 from whyfi.models.diagnostic import BaselineDiagnosticResult
 
 
@@ -16,6 +17,7 @@ def run_baseline_diagnostics() -> BaselineDiagnosticResult:
     gateway = None
     internet = None
     dns = None
+    wifi = None
     errors: list[str] = []
 
     try:
@@ -28,6 +30,12 @@ def run_baseline_diagnostics() -> BaselineDiagnosticResult:
             gateway = ping_host(connection.gateway)
         except Exception as exc:
             errors.append(f"Gateway test failed: {exc}")
+
+        if connection.adapter_type == "wifi":
+            try:
+                wifi = get_wifi_connection()
+            except Exception as exc:
+                errors.append(f"Wi-Fi discovery failed: {exc}")
     else:
         errors.append("No primary network connection was found.")
 
@@ -53,6 +61,7 @@ def run_baseline_diagnostics() -> BaselineDiagnosticResult:
         gateway=gateway,
         internet=internet,
         dns=dns,
+        wifi=wifi,
         completed=completed,
         error="; ".join(errors) if errors else None,
     )

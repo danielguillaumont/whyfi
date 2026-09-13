@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from whyfi.models.dns import DNSDiagnosticResult
 from whyfi.models.network import PrimaryConnection
 from whyfi.models.probes import InternetReachabilityResult, PingResult
+from whyfi.models.wifi import WiFiConnection
 
 
 @dataclass(slots=True)
@@ -16,4 +17,5 @@ class BaselineDiagnosticResult:
     internet: InternetReachabilityResult | None
     dns: DNSDiagnosticResult | None
     completed: bool
+    wifi: WiFiConnection | None = None
     error: str | None = None

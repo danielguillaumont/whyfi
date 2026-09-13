@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from whyfi.diagnosis.wifi import describe_wifi_signal, is_weak_wifi_signal
 from whyfi.models.diagnostic import BaselineDiagnosticResult
 from whyfi.models.diagnosis import DiagnosisCode, DiagnosisResult
 
@@ -18,6 +19,7 @@ def diagnose_baseline(
     gateway = result.gateway
     internet = result.internet
     dns = result.dns
+    wifi = result.wifi
 
     # No usable Windows default connection was discovered.
     if connection is None:
@@ -131,6 +133,40 @@ def diagnose_baseline(
                 "Check your modem or ISP status. If the problem continues "
                 "across multiple devices, the issue is likely upstream of "
                 "your local network."
+            ),
+        )
+
+    # Weak Wi-Fi plus packet loss to the local gateway gives us stronger
+    # evidence that the wireless link itself is contributing to the problem.
+    if (
+        connection.adapter_type == "wifi"
+        and wifi is not None
+        and wifi.connected
+        and is_weak_wifi_signal(wifi.signal_percent)
+        and gateway.reachable
+        and gateway.packet_loss_percent >= _PACKET_LOSS_THRESHOLD_PERCENT
+    ):
+        signal_description = describe_wifi_signal(wifi.signal_percent)
+
+        return DiagnosisResult(
+            code=DiagnosisCode.WIFI_ISSUE,
+            title="Your Wi-Fi signal looks weak.",
+            confidence=95,
+            summary=(
+                "WHYFI found significant packet loss between your computer "
+                "and the router while the Wi-Fi signal was weak."
+            ),
+            evidence=[
+                f"Wi-Fi signal: {wifi.signal_percent}%.",
+                f"Signal quality: {signal_description}.",
+                f"Gateway packet loss: {gateway.packet_loss_percent}%.",
+                f"Radio type: {wifi.radio_type or 'Unknown'}.",
+                f"Channel: {wifi.channel if wifi.channel is not None else 'Unknown'}.",
+            ],
+            recommendation=(
+                "Move closer to the router or access point, reduce wireless "
+                "interference, and run WHYFI again. If possible, compare the "
+                "result with an Ethernet connection."
             ),
         )
 
@@ -270,6 +306,36 @@ def diagnose_baseline(
             else "Unavailable"
         )
 
+        evidence = [
+            f"Primary adapter: {connection.adapter_name}.",
+            (
+                f"Gateway reachable with "
+                f"{gateway.packet_loss_percent}% packet loss."
+            ),
+            f"Average gateway latency: {gateway_latency}.",
+            (
+                f"Public targets reachable: "
+                f"{internet.targets_reachable}/{internet.targets_tested}."
+            ),
+            (
+                f"DNS resolver {dns.default_resolver} "
+                f"responded in {dns_latency}."
+            ),
+        ]
+
+        if (
+            connection.adapter_type == "wifi"
+            and wifi is not None
+            and wifi.connected
+            and wifi.signal_percent is not None
+        ):
+            evidence.append(
+                (
+                    f"Wi-Fi signal: {wifi.signal_percent}% "
+                    f"({describe_wifi_signal(wifi.signal_percent)})."
+                )
+            )
+
         return DiagnosisResult(
             code=DiagnosisCode.HEALTHY,
             title="Everything looks healthy.",
@@ -278,22 +344,7 @@ def diagnose_baseline(
                 "Your local connection, router, internet access, and DNS "
                 "are all responding normally."
             ),
-            evidence=[
-                f"Primary adapter: {connection.adapter_name}.",
-                (
-                    f"Gateway reachable with "
-                    f"{gateway.packet_loss_percent}% packet loss."
-                ),
-                f"Average gateway latency: {gateway_latency}.",
-                (
-                    f"Public targets reachable: "
-                    f"{internet.targets_reachable}/{internet.targets_tested}."
-                ),
-                (
-                    f"DNS resolver {dns.default_resolver} "
-                    f"responded in {dns_latency}."
-                ),
-            ],
+            evidence=evidence,
             recommendation=(
                 "No action is needed based on the baseline checks."
             ),
