@@ -12,6 +12,7 @@ class DiagnosisCode(StrEnum):
     GATEWAY_ISSUE = "gateway_issue"
     INTERNET_ISSUE = "internet_issue"
     DNS_ISSUE = "dns_issue"
+    UNSTABLE_CONNECTION = "unstable_connection"
     UNKNOWN = "unknown"
 
 

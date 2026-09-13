@@ -26,60 +26,72 @@ def make_connection() -> PrimaryConnection:
 def make_ping(
     target: str,
     reachable: bool = True,
+    packet_loss_percent: float = 0.0,
 ) -> PingResult:
     """Create a representative ping result."""
 
-    if reachable:
+    if not reachable:
         return PingResult(
             target=target,
-            reachable=True,
+            reachable=False,
             packets_sent=4,
-            packets_received=4,
-            packet_loss_percent=0.0,
-            min_latency_ms=2.0,
-            average_latency_ms=4.0,
-            max_latency_ms=6.0,
+            packets_received=0,
+            packet_loss_percent=100.0,
+            error="No ICMP replies received.",
         )
+
+    packets_received = round(
+        4 * (1 - packet_loss_percent / 100)
+    )
 
     return PingResult(
         target=target,
-        reachable=False,
+        reachable=True,
         packets_sent=4,
-        packets_received=0,
-        packet_loss_percent=100.0,
-        error="No ICMP replies received.",
+        packets_received=packets_received,
+        packet_loss_percent=packet_loss_percent,
+        min_latency_ms=2.0,
+        average_latency_ms=4.0,
+        max_latency_ms=6.0,
     )
 
 
 def make_internet(
     reachable: bool = True,
+    packet_losses: tuple[float, float] = (0.0, 0.0),
 ) -> InternetReachabilityResult:
     """Create a representative direct-IP internet result."""
 
-    if reachable:
+    if not reachable:
         probes = [
-            make_ping("1.1.1.1"),
-            make_ping("8.8.8.8"),
+            make_ping("1.1.1.1", reachable=False),
+            make_ping("8.8.8.8", reachable=False),
         ]
 
         return InternetReachabilityResult(
-            reachable=True,
+            reachable=False,
             targets_tested=2,
-            targets_reachable=2,
+            targets_reachable=0,
             probes=probes,
+            error="No public IP targets responded.",
         )
 
     probes = [
-        make_ping("1.1.1.1", reachable=False),
-        make_ping("8.8.8.8", reachable=False),
+        make_ping(
+            "1.1.1.1",
+            packet_loss_percent=packet_losses[0],
+        ),
+        make_ping(
+            "8.8.8.8",
+            packet_loss_percent=packet_losses[1],
+        ),
     ]
 
     return InternetReachabilityResult(
-        reachable=False,
+        reachable=True,
         targets_tested=2,
-        targets_reachable=0,
+        targets_reachable=2,
         probes=probes,
-        error="No public IP targets responded.",
     )
 
 
@@ -169,7 +181,10 @@ def test_gateway_failure() -> None:
 
     baseline = BaselineDiagnosticResult(
         connection=make_connection(),
-        gateway=make_ping("192.168.50.1", reachable=False),
+        gateway=make_ping(
+            "192.168.50.1",
+            reachable=False,
+        ),
         internet=make_internet(reachable=False),
         dns=make_dns(healthy=False),
         completed=True,
@@ -181,7 +196,7 @@ def test_gateway_failure() -> None:
 
 
 def test_internet_failure() -> None:
-    """Healthy gateway with failed public IP probes should indicate upstream failure."""
+    """Healthy gateway with failed public probes should indicate upstream failure."""
 
     baseline = BaselineDiagnosticResult(
         connection=make_connection(),
@@ -197,7 +212,7 @@ def test_internet_failure() -> None:
 
 
 def test_dns_failure() -> None:
-    """Working direct-IP internet with failed default DNS should indicate DNS failure."""
+    """Working direct-IP internet with failed DNS should indicate DNS failure."""
 
     baseline = BaselineDiagnosticResult(
         connection=make_connection(),
@@ -214,3 +229,59 @@ def test_dns_failure() -> None:
 
     assert diagnosis.code == DiagnosisCode.DNS_ISSUE
     assert diagnosis.confidence >= 90
+
+
+def test_local_packet_loss() -> None:
+    """Significant gateway packet loss should indicate local instability."""
+
+    baseline = BaselineDiagnosticResult(
+        connection=make_connection(),
+        gateway=make_ping(
+            "192.168.50.1",
+            packet_loss_percent=25.0,
+        ),
+        internet=make_internet(),
+        dns=make_dns(),
+        completed=True,
+    )
+
+    diagnosis = diagnose_baseline(baseline)
+
+    assert diagnosis.code == DiagnosisCode.UNSTABLE_CONNECTION
+    assert diagnosis.confidence >= 90
+
+
+def test_public_packet_loss() -> None:
+    """Loss across multiple public targets should indicate internet instability."""
+
+    baseline = BaselineDiagnosticResult(
+        connection=make_connection(),
+        gateway=make_ping("192.168.50.1"),
+        internet=make_internet(
+            packet_losses=(25.0, 50.0),
+        ),
+        dns=make_dns(),
+        completed=True,
+    )
+
+    diagnosis = diagnose_baseline(baseline)
+
+    assert diagnosis.code == DiagnosisCode.UNSTABLE_CONNECTION
+
+
+def test_single_lossy_public_target_does_not_trigger_instability() -> None:
+    """One lossy remote host should not condemn the entire connection."""
+
+    baseline = BaselineDiagnosticResult(
+        connection=make_connection(),
+        gateway=make_ping("192.168.50.1"),
+        internet=make_internet(
+            packet_losses=(25.0, 0.0),
+        ),
+        dns=make_dns(),
+        completed=True,
+    )
+
+    diagnosis = diagnose_baseline(baseline)
+
+    assert diagnosis.code == DiagnosisCode.HEALTHY

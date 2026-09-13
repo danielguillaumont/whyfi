@@ -6,6 +6,9 @@ from whyfi.models.diagnostic import BaselineDiagnosticResult
 from whyfi.models.diagnosis import DiagnosisCode, DiagnosisResult
 
 
+_PACKET_LOSS_THRESHOLD_PERCENT = 25.0
+
+
 def diagnose_baseline(
     result: BaselineDiagnosticResult,
 ) -> DiagnosisResult:
@@ -54,11 +57,12 @@ def diagnose_baseline(
                 "diagnostic checks could not be completed."
             ),
             evidence=evidence,
-            recommendation="Run the diagnosis again and review the technical details.",
+            recommendation=(
+                "Run the diagnosis again and review the technical details."
+            ),
         )
 
     # Gateway and wider internet are both unreachable.
-    # This strongly suggests a problem close to the local network boundary.
     if not gateway.reachable and not internet.reachable:
         return DiagnosisResult(
             code=DiagnosisCode.GATEWAY_ISSUE,
@@ -82,7 +86,7 @@ def diagnose_baseline(
             ),
         )
 
-    # The gateway may block ICMP even though internet routing works.
+    # Some routers intentionally ignore ICMP even when routing still works.
     if not gateway.reachable and internet.reachable:
         return DiagnosisResult(
             code=DiagnosisCode.UNKNOWN,
@@ -100,7 +104,8 @@ def diagnose_baseline(
                 ),
             ],
             recommendation=(
-                "No immediate action is required if your connection is otherwise working."
+                "No immediate action is required if your connection is "
+                "otherwise working."
             ),
         )
 
@@ -123,8 +128,38 @@ def diagnose_baseline(
                 ),
             ],
             recommendation=(
-                "Check your modem or ISP status. If the problem continues across "
-                "multiple devices, the issue is likely upstream of your local network."
+                "Check your modem or ISP status. If the problem continues "
+                "across multiple devices, the issue is likely upstream of "
+                "your local network."
+            ),
+        )
+
+    # Packet loss to the local gateway strongly suggests instability between
+    # this computer and the local network.
+    if (
+        gateway.reachable
+        and gateway.packet_loss_percent >= _PACKET_LOSS_THRESHOLD_PERCENT
+    ):
+        return DiagnosisResult(
+            code=DiagnosisCode.UNSTABLE_CONNECTION,
+            title="Your local connection looks unstable.",
+            confidence=92,
+            summary=(
+                "WHYFI can reach your router, but packets are being lost "
+                "between your computer and the local network."
+            ),
+            evidence=[
+                f"Gateway {connection.gateway} is reachable.",
+                f"Gateway packet loss: {gateway.packet_loss_percent}%.",
+                (
+                    f"Packet-loss warning threshold: "
+                    f"{_PACKET_LOSS_THRESHOLD_PERCENT}%."
+                ),
+            ],
+            recommendation=(
+                "If you're on Wi-Fi, move closer to the router and reduce "
+                "wireless interference. If you're on Ethernet, check the "
+                "cable and network port."
             ),
         )
 
@@ -144,7 +179,7 @@ def diagnose_baseline(
                 "configured DNS resolver failed while an alternate resolver worked."
             ),
             evidence=[
-                f"Internet reachable by direct IP: yes.",
+                "Internet reachable by direct IP: yes.",
                 f"Default DNS resolver: {dns.default_resolver or 'Unknown'}.",
                 "Default DNS query failed.",
                 (
@@ -177,6 +212,47 @@ def diagnose_baseline(
             ),
         )
 
+    # We require multiple public targets to show packet loss before declaring
+    # wider internet instability. This avoids blaming the connection because
+    # one remote host happens to rate-limit or deprioritize ICMP.
+    lossy_public_probes = [
+        probe
+        for probe in internet.probes
+        if (
+            probe.reachable
+            and probe.packet_loss_percent >= _PACKET_LOSS_THRESHOLD_PERCENT
+        )
+    ]
+
+    if len(lossy_public_probes) >= 2:
+        evidence = [
+            f"Gateway packet loss: {gateway.packet_loss_percent}%.",
+        ]
+
+        evidence.extend(
+            (
+                f"{probe.target} packet loss: "
+                f"{probe.packet_loss_percent}%."
+            )
+            for probe in lossy_public_probes
+        )
+
+        return DiagnosisResult(
+            code=DiagnosisCode.UNSTABLE_CONNECTION,
+            title="Your internet connection looks unstable.",
+            confidence=88,
+            summary=(
+                "WHYFI can reach the internet, but multiple independent "
+                "public targets are showing significant packet loss."
+            ),
+            evidence=evidence,
+            recommendation=(
+                "Run the test again to confirm the pattern. If packet loss "
+                "continues across multiple devices, check your modem, router, "
+                "or ISP connection."
+            ),
+        )
+
     # All baseline layers are healthy.
     if gateway.reachable and internet.reachable and dns.healthy:
         gateway_latency = (
@@ -187,8 +263,10 @@ def diagnose_baseline(
 
         dns_latency = (
             f"{dns.default_query.latency_ms} ms"
-            if dns.default_query is not None
-            and dns.default_query.latency_ms is not None
+            if (
+                dns.default_query is not None
+                and dns.default_query.latency_ms is not None
+            )
             else "Unavailable"
         )
 
@@ -202,15 +280,23 @@ def diagnose_baseline(
             ),
             evidence=[
                 f"Primary adapter: {connection.adapter_name}.",
-                f"Gateway reachable with {gateway.packet_loss_percent}% packet loss.",
+                (
+                    f"Gateway reachable with "
+                    f"{gateway.packet_loss_percent}% packet loss."
+                ),
                 f"Average gateway latency: {gateway_latency}.",
                 (
                     f"Public targets reachable: "
                     f"{internet.targets_reachable}/{internet.targets_tested}."
                 ),
-                f"DNS resolver {dns.default_resolver} responded in {dns_latency}.",
+                (
+                    f"DNS resolver {dns.default_resolver} "
+                    f"responded in {dns_latency}."
+                ),
             ],
-            recommendation="No action is needed based on the baseline checks.",
+            recommendation=(
+                "No action is needed based on the baseline checks."
+            ),
         )
 
     return DiagnosisResult(
@@ -222,5 +308,7 @@ def diagnose_baseline(
             "them confidently to a known failure pattern."
         ),
         evidence=[],
-        recommendation="Review the technical details and run the diagnosis again.",
+        recommendation=(
+            "Review the technical details and run the diagnosis again."
+        ),
     )
