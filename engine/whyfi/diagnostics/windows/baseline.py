@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from whyfi.diagnostics.common.dns import check_dns
 from whyfi.diagnostics.common.internet import check_internet_reachability
+from whyfi.diagnostics.windows.local_config import check_local_config
 from whyfi.diagnostics.windows.ping import ping_host
 from whyfi.diagnostics.windows.primary import get_primary_connection
 from whyfi.diagnostics.windows.wifi import get_wifi_connection
@@ -18,7 +19,15 @@ def run_baseline_diagnostics() -> BaselineDiagnosticResult:
     internet = None
     dns = None
     wifi = None
+    local_config = None
     errors: list[str] = []
+
+    # Local configuration is checked independently because it may reveal
+    # problems even when Windows has no usable default route.
+    try:
+        local_config = check_local_config()
+    except Exception as exc:
+        errors.append(f"Local configuration check failed: {exc}")
 
     try:
         connection = get_primary_connection()
@@ -54,6 +63,7 @@ def run_baseline_diagnostics() -> BaselineDiagnosticResult:
         and gateway is not None
         and internet is not None
         and dns is not None
+        and local_config is not None
     )
 
     return BaselineDiagnosticResult(
@@ -62,6 +72,7 @@ def run_baseline_diagnostics() -> BaselineDiagnosticResult:
         internet=internet,
         dns=dns,
         wifi=wifi,
+        local_config=local_config,
         completed=completed,
         error="; ".join(errors) if errors else None,
     )

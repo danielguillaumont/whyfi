@@ -20,6 +20,41 @@ def diagnose_baseline(
     internet = result.internet
     dns = result.dns
     wifi = result.wifi
+    local_config = result.local_config
+
+    # An active physical adapter with only a 169.254.x.x address strongly
+    # suggests that Windows failed to receive an IPv4 lease from DHCP.
+    #
+    # This must be checked before NO_CONNECTION because a DHCP failure can
+    # prevent Windows from having a usable default route at all.
+    if (
+        local_config is not None
+        and local_config.likely_dhcp_issue
+    ):
+        adapters = ", ".join(
+            local_config.link_local_ipv4_adapters
+        ) or "Unknown"
+
+        return DiagnosisResult(
+            code=DiagnosisCode.LOCAL_CONFIG_ISSUE,
+            title="Your computer didn't get a usable IP address.",
+            confidence=97,
+            summary=(
+                "WHYFI found an active network adapter, but Windows assigned "
+                "only a 169.254.x.x link-local IPv4 address. This usually means "
+                "the computer could not obtain a normal address from DHCP."
+            ),
+            evidence=[
+                f"Active adapter(s): {', '.join(local_config.active_adapters)}.",
+                f"Link-local adapter(s): {adapters}.",
+                "No usable IPv4 address was found.",
+                "A 169.254.x.x address was detected.",
+            ],
+            recommendation=(
+                "Reconnect to the network and try renewing the IP address. "
+                "If the problem continues, check the router or DHCP service."
+            ),
+        )
 
     # No usable Windows default connection was discovered.
     if connection is None:
@@ -248,9 +283,8 @@ def diagnose_baseline(
             ),
         )
 
-    # We require multiple public targets to show packet loss before declaring
-    # wider internet instability. This avoids blaming the connection because
-    # one remote host happens to rate-limit or deprioritize ICMP.
+    # Multiple independent public targets must show significant loss before
+    # WHYFI classifies the wider internet connection as unstable.
     lossy_public_probes = [
         probe
         for probe in internet.probes
@@ -335,6 +369,9 @@ def diagnose_baseline(
                     f"({describe_wifi_signal(wifi.signal_percent)})."
                 )
             )
+
+        if local_config is not None and local_config.healthy:
+            evidence.append("Local IPv4 configuration: healthy.")
 
         return DiagnosisResult(
             code=DiagnosisCode.HEALTHY,

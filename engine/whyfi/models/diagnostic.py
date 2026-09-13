@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from whyfi.models.dns import DNSDiagnosticResult
+from whyfi.models.local_config import LocalConfigResult
 from whyfi.models.network import PrimaryConnection
 from whyfi.models.probes import InternetReachabilityResult, PingResult
 from whyfi.models.wifi import WiFiConnection
@@ -18,4 +19,5 @@ class BaselineDiagnosticResult:
     dns: DNSDiagnosticResult | None
     completed: bool
     wifi: WiFiConnection | None = None
+    local_config: LocalConfigResult | None = None
     error: str | None = None

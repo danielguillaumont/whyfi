@@ -9,6 +9,7 @@ class DiagnosisCode(StrEnum):
 
     HEALTHY = "healthy"
     NO_CONNECTION = "no_connection"
+    LOCAL_CONFIG_ISSUE = "local_config_issue"
     GATEWAY_ISSUE = "gateway_issue"
     INTERNET_ISSUE = "internet_issue"
     DNS_ISSUE = "dns_issue"
