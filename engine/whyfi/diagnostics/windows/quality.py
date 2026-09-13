@@ -68,10 +68,9 @@ def check_connection_quality(
         )
     ]
 
-    # One noisy public target is not enough evidence. Require both
-    # independent public targets to show high jitter.
     public_high_jitter = (
-        len(high_jitter_public_probes)
+        bool(internet_probes)
+        and len(high_jitter_public_probes)
         == len(internet_probes)
     )
 
@@ -91,11 +90,20 @@ def check_connection_quality(
         )
     ]
 
-    # As with jitter, require both public targets to show packet loss
-    # before blaming the wider internet connection.
     public_packet_loss = (
-        len(lossy_public_probes)
+        bool(internet_probes)
+        and len(lossy_public_probes)
         == len(internet_probes)
+    )
+
+    gateway_unstable = (
+        gateway_high_jitter
+        or gateway_packet_loss
+    )
+
+    internet_unstable = (
+        public_high_jitter
+        or public_packet_loss
     )
 
     high_jitter = (
@@ -111,14 +119,16 @@ def check_connection_quality(
     healthy = (
         gateway.reachable
         and any(probe.reachable for probe in internet_probes)
-        and not high_jitter
-        and not packet_loss_detected
+        and not gateway_unstable
+        and not internet_unstable
     )
 
     return ConnectionQualityResult(
         gateway=gateway,
         internet_probes=internet_probes,
         healthy=healthy,
+        gateway_unstable=gateway_unstable,
+        internet_unstable=internet_unstable,
         high_jitter=high_jitter,
         packet_loss_detected=packet_loss_detected,
     )

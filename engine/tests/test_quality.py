@@ -258,3 +258,87 @@ def test_quality_requires_at_least_two_samples() -> None:
         assert str(exc) == "sample_count must be at least 2"
     else:
         raise AssertionError("Expected ValueError")
+
+
+def test_healthy_quality_has_no_instability_scope(monkeypatch) -> None:
+    """Healthy measurements should not mark either network segment unstable."""
+
+    monkeypatch.setattr(
+        quality,
+        "get_primary_connection",
+        make_connection,
+    )
+
+    def fake_ping(target: str, count: int) -> PingResult:
+        return make_ping(target)
+
+    monkeypatch.setattr(
+        quality,
+        "ping_host",
+        fake_ping,
+    )
+
+    result = quality.check_connection_quality()
+
+    assert result.gateway_unstable is False
+    assert result.internet_unstable is False
+
+
+def test_gateway_jitter_is_scoped_to_local_network(monkeypatch) -> None:
+    """Gateway jitter should identify the local network as unstable."""
+
+    monkeypatch.setattr(
+        quality,
+        "get_primary_connection",
+        make_connection,
+    )
+
+    def fake_ping(target: str, count: int) -> PingResult:
+        if target == "192.168.50.1":
+            return make_ping(
+                target,
+                jitter_ms=20.0,
+            )
+
+        return make_ping(target)
+
+    monkeypatch.setattr(
+        quality,
+        "ping_host",
+        fake_ping,
+    )
+
+    result = quality.check_connection_quality()
+
+    assert result.gateway_unstable is True
+    assert result.internet_unstable is False
+
+
+def test_public_jitter_is_scoped_to_internet(monkeypatch) -> None:
+    """Jitter across both public targets should identify upstream instability."""
+
+    monkeypatch.setattr(
+        quality,
+        "get_primary_connection",
+        make_connection,
+    )
+
+    def fake_ping(target: str, count: int) -> PingResult:
+        if target in {"1.1.1.1", "8.8.8.8"}:
+            return make_ping(
+                target,
+                jitter_ms=35.0,
+            )
+
+        return make_ping(target)
+
+    monkeypatch.setattr(
+        quality,
+        "ping_host",
+        fake_ping,
+    )
+
+    result = quality.check_connection_quality()
+
+    assert result.gateway_unstable is False
+    assert result.internet_unstable is True

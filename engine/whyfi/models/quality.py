@@ -12,6 +12,8 @@ class ConnectionQualityResult:
     gateway: PingResult | None
     internet_probes: list[PingResult] = field(default_factory=list)
     healthy: bool = True
+    gateway_unstable: bool = False
+    internet_unstable: bool = False
     high_jitter: bool = False
     packet_loss_detected: bool = False
     error: str | None = None
