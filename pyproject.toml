@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "whyfi"
+version = "0.1.0"
+description = "An intelligent network diagnostic agent that finds out why your internet isn't working."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "psutil>=6.0,<8.0"
+]
+
+[tool.setuptools]
+package-dir = {"" = "engine"}
+
+[tool.setuptools.packages.find]
+where = ["engine"]
+include = ["whyfi*"]
