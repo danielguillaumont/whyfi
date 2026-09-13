@@ -13,9 +13,18 @@ dependencies = [
     "dnspython>=2.7,<3.0"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9.0"
+]
+
 [tool.setuptools]
 package-dir = {"" = "engine"}
 
 [tool.setuptools.packages.find]
 where = ["engine"]
 include = ["whyfi*"]
+
+[tool.pytest.ini_options]
+testpaths = ["engine/tests"]
+pythonpath = ["engine"]
