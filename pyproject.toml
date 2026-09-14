@@ -28,3 +28,6 @@ include = ["whyfi*"]
 [tool.pytest.ini_options]
 testpaths = ["engine/tests"]
 pythonpath = ["engine"]
+
+[project.scripts]
+whyfi = "whyfi.__main__:main"
