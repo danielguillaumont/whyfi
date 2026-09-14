@@ -1,45 +1,21 @@
-use std::io::{BufRead, BufReader, Read};
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
-
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-
 use tauri::Emitter;
+use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::ShellExt;
 
-fn run_diagnosis_process(app: tauri::AppHandle) -> Result<String, String> {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+async fn run_diagnosis_sidecar(
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    let sidecar_command = app
+        .shell()
+        .sidecar("whyfi-engine")
+        .map_err(|error| {
+            format!(
+                "Could not locate the WHYFI diagnostic engine: {error}"
+            )
+        })?
+        .args(["--stream-json"]);
 
-    let repo_root = manifest_dir
-        .parent()
-        .and_then(|path| path.parent())
-        .ok_or_else(|| "Could not locate the WHYFI project root.".to_string())?
-        .to_path_buf();
-
-    let python_path = repo_root
-        .join(".venv")
-        .join("Scripts")
-        .join("python.exe");
-
-    if !python_path.exists() {
-        return Err(format!(
-            "WHYFI Python environment was not found at {}.",
-            python_path.display()
-        ));
-    }
-
-    let mut command = Command::new(&python_path);
-
-    command
-        .args(["-m", "whyfi", "--stream-json"])
-        .current_dir(&repo_root)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    #[cfg(target_os = "windows")]
-    command.creation_flags(0x08000000);
-
-    let mut child = command
+    let (mut receiver, _child) = sidecar_command
         .spawn()
         .map_err(|error| {
             format!(
@@ -47,68 +23,76 @@ fn run_diagnosis_process(app: tauri::AppHandle) -> Result<String, String> {
             )
         })?;
 
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| {
-            "Could not read WHYFI diagnostic output.".to_string()
-        })?;
-
-    let reader = BufReader::new(stdout);
     let mut final_event: Option<String> = None;
+    let mut stderr_lines: Vec<String> = Vec::new();
+    let mut exit_code: Option<i32> = None;
+    let mut terminated = false;
 
-    for line in reader.lines() {
-        let line = line.map_err(|error| {
-            format!(
-                "Could not read WHYFI diagnostic output: {error}"
-            )
-        })?;
+    while let Some(event) = receiver.recv().await {
+        match event {
+            CommandEvent::Stdout(bytes) => {
+                let line = String::from_utf8_lossy(&bytes)
+                    .trim()
+                    .to_string();
 
-        let event = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
 
-        if event.is_empty() {
-            continue;
-        }
-
-        app.emit(
-            "whyfi-diagnostic-event",
-            event.to_string(),
-        )
-        .map_err(|error| {
-            format!(
-                "Could not send diagnostic progress to the interface: {error}"
-            )
-        })?;
-
-        final_event = Some(event.to_string());
-    }
-
-    let status = child
-        .wait()
-        .map_err(|error| {
-            format!(
-                "Could not wait for the WHYFI diagnostic engine: {error}"
-            )
-        })?;
-
-    let mut stderr = String::new();
-
-    if let Some(mut error_output) = child.stderr.take() {
-        error_output
-            .read_to_string(&mut stderr)
-            .map_err(|error| {
-                format!(
-                    "Could not read WHYFI diagnostic errors: {error}"
+                app.emit(
+                    "whyfi-diagnostic-event",
+                    line.clone(),
                 )
-            })?;
+                .map_err(|error| {
+                    format!(
+                        "Could not send diagnostic progress to the interface: {error}"
+                    )
+                })?;
+
+                if line.contains("\"type\":\"result\"") {
+                    final_event = Some(line);
+                }
+            }
+
+            CommandEvent::Stderr(bytes) => {
+                let line = String::from_utf8_lossy(&bytes)
+                    .trim()
+                    .to_string();
+
+                if !line.is_empty() {
+                    stderr_lines.push(line);
+                }
+            }
+
+            CommandEvent::Error(error) => {
+                return Err(format!(
+                    "WHYFI diagnostic engine process error: {error}"
+                ));
+            }
+
+            CommandEvent::Terminated(payload) => {
+                terminated = true;
+                exit_code = payload.code;
+            }
+
+            _ => {}
+        }
     }
 
-    if !status.success() {
-        let stderr = stderr.trim();
+    if !terminated {
+        return Err(
+            "WHYFI diagnostic engine ended without a termination status."
+                .to_string(),
+        );
+    }
+
+    if exit_code != Some(0) {
+        let stderr = stderr_lines.join("\n");
 
         if stderr.is_empty() {
             return Err(format!(
-                "WHYFI diagnostic engine exited with status {status}."
+                "WHYFI diagnostic engine exited with code {:?}.",
+                exit_code
             ));
         }
 
@@ -118,15 +102,9 @@ fn run_diagnosis_process(app: tauri::AppHandle) -> Result<String, String> {
     }
 
     let result = final_event.ok_or_else(|| {
-        "WHYFI diagnostic engine returned no data.".to_string()
+        "WHYFI diagnostic engine did not return a final result."
+            .to_string()
     })?;
-
-    if !result.contains("\"type\":\"result\"") {
-        return Err(
-            "WHYFI diagnostic engine did not return a final result."
-                .to_string(),
-        );
-    }
 
     Ok(result)
 }
@@ -135,20 +113,13 @@ fn run_diagnosis_process(app: tauri::AppHandle) -> Result<String, String> {
 async fn run_diagnosis(
     app: tauri::AppHandle,
 ) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        run_diagnosis_process(app)
-    })
-    .await
-    .map_err(|error| {
-        format!(
-            "WHYFI diagnostic task could not complete: {error}"
-        )
-    })?
+    run_diagnosis_sidecar(app).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(
             tauri::generate_handler![run_diagnosis]
