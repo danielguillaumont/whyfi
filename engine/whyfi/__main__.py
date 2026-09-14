@@ -1,0 +1,89 @@
+"""Command-line entry point for WHYFI."""
+
+from __future__ import annotations
+
+import argparse
+
+from whyfi.diagnosis.engine import diagnose_baseline
+from whyfi.diagnosis.quality import diagnose_connection_quality
+from whyfi.diagnostics.windows.baseline import run_baseline_diagnostics
+from whyfi.diagnostics.windows.quality import check_connection_quality
+from whyfi.models.diagnosis import DiagnosisResult
+
+
+def _print_diagnosis(diagnosis: DiagnosisResult) -> None:
+    """Display a WHYFI diagnosis in the terminal."""
+
+    print()
+    print(diagnosis.title)
+    print(f"Confidence: {diagnosis.confidence}%")
+    print()
+    print(diagnosis.summary)
+
+    if diagnosis.evidence:
+        print()
+        print("Evidence:")
+
+        for item in diagnosis.evidence:
+            print(f"  - {item}")
+
+    if diagnosis.recommendation:
+        print()
+        print("Recommendation:")
+        print(diagnosis.recommendation)
+
+    print()
+
+
+def _run_baseline() -> DiagnosisResult:
+    """Run WHYFI's standard baseline investigation."""
+
+    baseline = run_baseline_diagnostics()
+
+    return diagnose_baseline(baseline)
+
+
+def _run_quality() -> DiagnosisResult:
+    """Run WHYFI's deeper connection-quality investigation."""
+
+    quality = check_connection_quality(sample_count=10)
+
+    return diagnose_connection_quality(quality)
+
+
+def main() -> None:
+    """Run WHYFI from the command line."""
+
+    parser = argparse.ArgumentParser(
+        prog="WHYFI",
+        description=(
+            "Find out why your internet is acting weird."
+        ),
+    )
+
+    parser.add_argument(
+        "--quality",
+        action="store_true",
+        help=(
+            "Run a deeper packet-loss and jitter investigation."
+        ),
+    )
+
+    args = parser.parse_args()
+
+    print()
+    print("WHYFI")
+    print("=" * 50)
+
+    if args.quality:
+        print("Running deeper connection-quality analysis...")
+        diagnosis = _run_quality()
+    else:
+        print("Investigating your network...")
+        diagnosis = _run_baseline()
+
+    _print_diagnosis(diagnosis)
+
+
+if __name__ == "__main__":
+    main()
