@@ -4,61 +4,34 @@
 
 WHYFI is a Windows network diagnostic tool that investigates connectivity problems, identifies the most likely failure point, and explains what is happening in plain language.
 
-**One click → investigate → diagnose → explain.**
+Instead of asking the user to understand DNS, DHCP, gateways, routing, packet loss, or jitter, WHYFI collects the evidence automatically and answers the useful question:
 
-Instead of making users understand `ping`, DNS, gateways, routing tables, DHCP, jitter, or packet loss, WHYFI gathers the evidence automatically and answers the useful question:
-
-> Why isn't my internet working properly?
-
----
-
-## What is WHYFI?
-
-Internet problems can happen at very different layers.
-
-Your computer might not be connected. It might connect to Wi-Fi but fail to receive a usable IP address. Your router might be unreachable. Your router might work while the wider internet does not. DNS might fail even though raw internet connectivity works.
-
-A connection can also technically be "online" while still behaving badly because of packet loss, unstable Wi-Fi, or excessive jitter.
-
-WHYFI is being built to distinguish those situations automatically.
-
-The goal is not simply to run networking commands.
-
-The goal is to **collect evidence, identify the likely failure point, and tell the user what to do next.**
+> **Why isn't my internet working properly?**
 
 ---
 
 ## Current Status
 
-🚧 **Active Development**
+🚧 **Active Development — Diagnostic engine and CLI are working**
 
-WHYFI now has a functioning Windows diagnostic engine, evidence-based diagnosis engine, and deeper connection-quality investigation system.
+WHYFI currently includes a functioning Windows diagnostic engine, evidence-based diagnosis system, deeper connection-quality testing, and a usable command-line interface.
 
 It can currently:
 
-- Discover Windows network adapters
-- Identify the active primary connection
-- Read the preferred Windows default route
-- Determine the default gateway
-- Test gateway reachability
-- Measure latency and packet loss
-- Calculate network jitter
-- Test direct internet reachability using multiple public IP targets
-- Inspect the configured DNS resolver
-- Compare the configured resolver against alternate public resolvers
-- Inspect Windows Wi-Fi connection information
-- Read Wi-Fi signal quality, radio type, channel, and link rate
-- Detect weak Wi-Fi combined with local packet loss
-- Inspect local IPv4 configuration
-- Detect `169.254.x.x` link-local/APIPA addresses
-- Identify likely DHCP configuration failures
-- Ignore common virtual adapters when evaluating physical network health
-- Run deeper multi-sample connection-quality investigations
-- Distinguish local network instability from upstream internet instability
-- Avoid blaming the connection because one public target behaves badly
-- Produce evidence-backed diagnoses
-- Generate confidence scores and recommendations
-- Validate diagnostic behavior through automated scenario tests
+- Discover Windows network adapters and the primary connection
+- Identify the default route and gateway
+- Inspect local IPv4 and DHCP configuration
+- Detect APIPA / `169.254.x.x` addressing
+- Inspect Wi-Fi signal, channel, radio type, and link rate
+- Measure latency, packet loss, and jitter
+- Test gateway and direct internet reachability
+- Compare the configured DNS resolver with public resolvers
+- Distinguish local network instability from upstream instability
+- Avoid false conclusions from a single noisy public endpoint
+- Produce evidence-backed diagnoses, confidence scores, and recommendations
+- Show live diagnostic progress
+- Expose raw technical measurements when requested
+- Run through the installed `whyfi` command
 
 Current diagnosis types:
 
@@ -76,56 +49,43 @@ unknown
 
 ---
 
-## Example Diagnosis
-
-A normal baseline investigation can produce:
+## Example
 
 ```text
-Everything looks healthy.
+WHYFI
+==================================================
+Investigating your network...
+Checking network configuration...
+Finding your active connection...
+Checking your router...
+Checking Wi-Fi signal...
+Testing internet access...
+Checking DNS...
 
+Everything looks healthy.
 Confidence: 96%
 
+Your local connection, router, internet access, and DNS
+are all responding normally.
+
 Evidence:
-- Primary adapter: Wi-Fi
-- Local IPv4 configuration: healthy
-- Gateway reachable with 0% packet loss
-- Public targets reachable: 2/2
-- DNS resolution successful
-- Wi-Fi signal: 79% (good)
+  - Primary adapter: Wi-Fi.
+  - Gateway reachable with 0.0% packet loss.
+  - Public targets reachable: 2/2.
+  - Wi-Fi signal: 79% (good).
+  - Local IPv4 configuration: healthy.
 
 Recommendation:
 No action is needed based on the baseline checks.
 ```
 
-A deeper connection-quality investigation can also distinguish between problems occurring locally and problems occurring beyond the router.
-
-For example:
-
-```text
-Your local connection is unstable.
-
-Confidence: 94%
-
-Evidence:
-- Gateway packet loss detected
-- Gateway jitter is elevated
-- Instability begins between the computer and local router
-
-Recommendation:
-If you're using Wi-Fi, move closer to the router and reduce
-wireless interference. If you're using Ethernet, check the
-cable and network port.
-```
-
-WHYFI's current diagnoses are generated by deterministic evidence-based rules rather than an AI model.
+WHYFI uses deterministic evidence-based rules for its current diagnoses. Network measurements remain the source of truth.
 
 ---
 
 ## How It Works
 
-WHYFI currently uses two related investigation paths.
-
-### Baseline Diagnosis
+WHYFI investigates the connection in layers:
 
 ```text
 Windows Network
@@ -134,270 +94,150 @@ Windows Network
 Adapter + Route Discovery
       |
       v
-Local IPv4 / DHCP Inspection
+Local IP / DHCP
       |
       v
-Wi-Fi Information
+Wi-Fi + Gateway
       |
       v
-Gateway / Internet / DNS Probes
+Internet + DNS
       |
       v
-Baseline Diagnostic Result
+Evidence Collection
       |
       v
 Diagnosis Engine
       |
       v
-Evidence + Confidence + Recommendation
+Cause + Confidence + Recommendation
 ```
 
-### Deeper Connection-Quality Investigation
+A deeper quality investigation also takes multiple samples from the local gateway and independent public targets.
+
+This allows WHYFI to distinguish between:
 
 ```text
-Primary Connection
-      |
-      v
-Multi-Sample Gateway Probe
-      |
-      +-----------------------+
-      |                       |
-      v                       v
-1.1.1.1 Probe           8.8.8.8 Probe
-      |                       |
-      +-----------+-----------+
-                  |
-                  v
-        Packet Loss + Jitter
-                  |
-                  v
-       Instability Localization
-          /               \
-         v                 v
-Local Network        Wider Internet
-         \                 /
-          \               /
-           v             v
-          Quality Diagnosis
+Computer <-> Router instability
+            =
+Local network problem
 ```
 
-This distinction matters.
-
-If instability is already visible between the computer and its gateway, WHYFI treats the problem as local.
-
-If the gateway remains stable while multiple independent public targets show instability, WHYFI can identify the problem as likely occurring beyond the router.
-
-Network measurements remain the source of truth.
-
-An optional AI investigation layer may be added later for ambiguous cases, dynamic tool selection, and clearer explanations, but the core diagnostic engine is designed to continue functioning even when the internet itself is unavailable.
-
----
-
-## Diagnostic Capabilities
-
-### Connection Discovery
-
-WHYFI can determine:
-
-- Active Windows network adapters
-- Adapter type
-- IPv4 and IPv6 addresses
-- Interface state
-- Link speed
-- MTU
-- Preferred Windows default route
-- Default gateway
-- Primary connection
-
-### Local Configuration
-
-WHYFI can detect:
-
-- Missing usable IPv4 configuration
-- `169.254.x.x` APIPA/link-local addressing
-- Likely DHCP failure
-- Active physical adapters without usable IPv4 connectivity
-- Virtual adapters that should not mask a broken physical connection
-
-### Wi-Fi
-
-WHYFI currently collects:
-
-- Interface name
-- Connection state
-- SSID
-- Signal percentage
-- Radio type
-- Channel
-- Receive link rate
-- Transmit link rate
-
-Wi-Fi signal is currently classified as:
+and:
 
 ```text
-0–40%   -> weak
-41–65%  -> fair
-66–85%  -> good
-86–100% -> excellent
-```
-
-WHYFI does not diagnose a Wi-Fi failure from signal strength alone.
-
-Weak signal must be supported by additional evidence such as packet loss to the local gateway.
-
-### Internet Reachability
-
-WHYFI tests direct-IP connectivity against multiple independent public targets.
-
-This allows it to distinguish:
-
-```text
-Gateway works + internet fails
-            ↓
+Router stable + multiple public targets unstable
+            =
 Likely upstream / ISP-side problem
 ```
 
-from:
+WHYFI is deliberately conservative. Weak Wi-Fi alone does not automatically mean Wi-Fi is broken, and one noisy internet endpoint is not enough to declare the connection unstable.
 
-```text
-Gateway fails + internet fails
-            ↓
-Likely local router / network problem
+---
+
+## CLI
+
+Install WHYFI in development mode:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
 ```
+
+Run a standard diagnosis:
+
+```powershell
+whyfi
+```
+
+Run a deeper packet-loss and jitter investigation:
+
+```powershell
+whyfi --quality
+```
+
+Show the baseline diagnosis plus raw technical measurements:
+
+```powershell
+whyfi --details
+```
+
+View available commands:
+
+```powershell
+whyfi --help
+```
+
+---
+
+## Diagnostic Areas
+
+### Local Network
+
+WHYFI checks:
+
+- Active network adapters
+- Primary connection
+- Default gateway
+- IPv4 configuration
+- DHCP / APIPA issues
+- Gateway reachability
+- Local packet loss
+- Wi-Fi signal quality
+
+### Internet
+
+WHYFI checks multiple independent public targets for:
+
+- Reachability
+- Packet loss
+- Minimum / average / maximum latency
+- Jitter
+- Upstream instability
 
 ### DNS
 
 WHYFI can:
 
-- Detect the configured DNS resolver
-- Perform DNS queries through that resolver
-- Test alternate public DNS resolvers
-- Distinguish DNS failure from complete internet failure
-
-### Connection Quality
-
-WHYFI includes a deeper optional quality investigation using additional samples.
-
-It currently evaluates:
-
-- Packet loss
-- Minimum latency
-- Average latency
-- Maximum latency
-- Jitter
-- Gateway stability
-- Public-target stability
-
-Current deeper quality thresholds include:
-
-```text
-Gateway jitter warning:  >= 15 ms
-Internet jitter warning: >= 30 ms
-Packet loss warning:     >= 10%
-```
-
-Public internet instability requires supporting evidence across multiple independent targets.
-
-One noisy public endpoint alone is intentionally not enough to condemn the user's connection.
+- Detect the configured resolver
+- Test DNS resolution
+- Compare against alternate public resolvers
+- Distinguish DNS failure from general internet failure
 
 ---
 
-## Automated Testing
+## Testing
 
-WHYFI currently has **38 automated pytest tests** covering its diagnostic logic, parsing, edge cases, and failure scenarios.
-
-Coverage currently includes:
-
-```text
-Healthy baseline connection
-No primary connection
-Gateway failure
-Upstream internet failure
-DNS failure
-Local gateway packet loss
-Public packet loss
-Single noisy public target protection
-
-Healthy local IPv4 configuration
-169.254.x.x / APIPA detection
-Likely DHCP failure
-Virtual adapter filtering
-No active physical adapter
-DHCP failure vs generic no-connection precedence
-
-Windows ping latency parsing
-Sub-1ms Windows ping parsing
-Jitter calculations
-Missing jitter measurements
-
-Healthy deeper connection quality
-Gateway jitter detection
-Public jitter detection
-Gateway packet-loss detection
-Public packet-loss detection
-Single noisy target protection
-Minimum sampling validation
-
-Local-vs-upstream instability localization
-
-Healthy quality diagnosis
-Local instability diagnosis
-Upstream instability diagnosis
-Quality collection failure handling
-
-Weak Wi-Fi + packet loss
-Weak Wi-Fi without supporting loss
-Good Wi-Fi with local packet loss
-```
+WHYFI currently has **44 automated pytest tests** covering diagnostic rules, parsers, edge cases, failure scenarios, CLI behavior, and progress reporting.
 
 Current result:
 
 ```text
-38 passed
+44 passed
 ```
 
-Run the complete test suite with:
+Run the suite with:
 
 ```powershell
 pytest -v
 ```
 
----
+Examples of covered scenarios include:
 
-## Design Philosophy
-
-WHYFI is intentionally simple on the outside and technically deeper underneath.
-
-The planned application will have:
-
-- No account
-- No login
-- No cloud database
-- No complex dashboard
-- No chatbot-style interface
-- One primary action: **Diagnose**
-
-The goal is a utility that feels closer to Shazam than a traditional network administration tool.
-
-The user should not need to know what DHCP, DNS, ICMP, jitter, routing, or packet loss mean.
-
-WHYFI should investigate those things for them.
-
----
-
-## Evidence Before Conclusions
-
-WHYFI is deliberately conservative when diagnosing problems.
-
-For example:
-
-- Weak Wi-Fi signal alone does not automatically mean Wi-Fi is broken.
-- One public server showing packet loss does not automatically mean the internet connection is unstable.
-- A gateway that ignores ICMP is not automatically considered broken if wider internet connectivity still works.
-- Public instability is stronger evidence when multiple independent targets show the same pattern.
-- Local gateway instability takes precedence because problems close to the device can also distort downstream measurements.
-
-The diagnostic engine is designed to combine multiple pieces of evidence before assigning a likely root cause.
+- Healthy connection
+- No primary connection
+- DHCP / APIPA failure
+- Gateway failure
+- Upstream internet failure
+- DNS failure
+- Weak Wi-Fi with supporting packet loss
+- Gateway jitter
+- Public jitter
+- Packet loss
+- Single noisy public-target protection
+- Local vs upstream instability
+- CLI modes
+- Diagnostic progress reporting
 
 ---
 
@@ -406,81 +246,23 @@ The diagnostic engine is designed to combine multiple pieces of evidence before 
 ### Current
 
 - Python 3.12
-- Python dataclasses
 - `psutil`
 - `dnspython`
-- Windows PowerShell
+- Windows networking utilities
 - Windows `ping`
 - Windows `netsh`
-- Windows networking utilities
 - pytest
-- Git
-- GitHub
+- Git / GitHub
 
-### Planned Desktop App
+### Desktop Application
+
+Planned for the next phase:
 
 - Tauri
 - React
 - TypeScript
 - Vite
 - Tailwind CSS
-
-### Planned Intelligent Investigation
-
-- Allowlisted diagnostic tools
-- Structured AI outputs
-- Evidence-backed explanations
-- Privacy sanitization
-- Constrained tool access
-- Dynamic follow-up investigation
-
----
-
-## Repository Structure
-
-```text
-whyfi/
-├── desktop/                       # Future desktop application
-├── engine/
-│   ├── whyfi/
-│   │   ├── diagnostics/
-│   │   │   ├── common/
-│   │   │   │   ├── dns.py
-│   │   │   │   └── internet.py
-│   │   │   └── windows/
-│   │   │       ├── adapters.py
-│   │   │       ├── baseline.py
-│   │   │       ├── local_config.py
-│   │   │       ├── ping.py
-│   │   │       ├── primary.py
-│   │   │       ├── quality.py
-│   │   │       ├── routes.py
-│   │   │       └── wifi.py
-│   │   ├── diagnosis/
-│   │   │   ├── engine.py
-│   │   │   ├── quality.py
-│   │   │   └── wifi.py
-│   │   ├── models/
-│   │   │   ├── diagnostic.py
-│   │   │   ├── diagnosis.py
-│   │   │   ├── dns.py
-│   │   │   ├── local_config.py
-│   │   │   ├── network.py
-│   │   │   ├── probes.py
-│   │   │   ├── quality.py
-│   │   │   └── wifi.py
-│   │   ├── evidence/
-│   │   ├── agent/
-│   │   └── privacy/
-│   └── tests/
-├── docs/
-│   ├── architecture/
-│   └── screenshots/
-├── .github/
-│   └── workflows/
-├── pyproject.toml
-└── README.md
-```
 
 ---
 
@@ -490,18 +272,14 @@ whyfi/
 
 **Status: Core functionality implemented**
 
-- [x] Network adapter discovery
-- [x] Default-route discovery
-- [x] Primary connection identification
+- [x] Adapter and route discovery
+- [x] Primary connection detection
 - [x] Gateway diagnostics
 - [x] Internet reachability
 - [x] DNS diagnostics
-- [x] Latency measurement
-- [x] Packet-loss measurement
-- [x] Baseline diagnostic runner
-- [x] Wi-Fi signal-quality collection
-- [x] Local IPv4 configuration diagnostics
-- [x] APIPA / DHCP failure detection
+- [x] Wi-Fi diagnostics
+- [x] IPv4 / DHCP diagnostics
+- [x] Latency and packet-loss measurement
 - [x] Jitter measurement
 - [x] Deeper connection-quality sampling
 - [x] Local vs upstream instability detection
@@ -514,60 +292,53 @@ whyfi/
 
 - [x] Evidence-based diagnosis rules
 - [x] Confidence scoring
-- [x] Healthy connection detection
-- [x] No-connection detection
-- [x] Local configuration failure detection
-- [x] Gateway problem detection
-- [x] Upstream internet problem detection
-- [x] DNS failure detection
-- [x] Wi-Fi issue detection
-- [x] Unstable connection detection
-- [x] Local-vs-upstream instability reasoning
+- [x] Root-cause classifications
 - [x] Connection-quality diagnosis
-- [x] Simulated failure scenarios
-- [x] Automated pytest coverage
+- [x] Conservative multi-signal reasoning
+- [x] Automated scenario coverage
 - [ ] Additional edge cases
 - [ ] Broader evidence scoring
 - [ ] Confidence calibration
 
 ### V0.3 — Usable Local Application
 
-**Status: Not started**
+**Status: Complete**
 
-- [ ] CLI entry point
-- [ ] Single-command diagnosis
-- [ ] Clean terminal result output
-- [ ] Technical details mode
-- [ ] Diagnostic progress reporting
+- [x] CLI entry point
+- [x] Installed `whyfi` command
+- [x] Single-command diagnosis
+- [x] Deeper quality mode
+- [x] Technical-details mode
+- [x] Live diagnostic progress
+- [x] Automated CLI coverage
 
 ### V0.4 — Desktop Application
 
-**Status: Not started**
+**Status: Next**
 
 - [ ] Tauri application shell
 - [ ] React interface
 - [ ] One-click Diagnose flow
 - [ ] Live diagnostic progress
 - [ ] Result screen
-- [ ] Technical details view
+- [ ] Technical-details view
 
 ### V0.5 — Intelligent Investigation
 
-**Status: Not started**
+**Status: Planned**
 
-- [ ] AI diagnostic tools
-- [ ] Allowlisted tool execution
+- [ ] Allowlisted diagnostic tools
 - [ ] Dynamic follow-up investigation
 - [ ] Privacy sanitization
 - [ ] Structured AI responses
 - [ ] Human-friendly explanations
-- [ ] Deterministic evidence remains source of truth
+- [ ] Deterministic evidence remains the source of truth
 
 ### V1.0
 
 - [ ] Windows installer
 - [ ] Stable diagnostic engine
-- [ ] CI test pipeline
+- [ ] CI pipeline
 - [ ] GitHub release
 - [ ] Documentation
 - [ ] Screenshots
@@ -575,93 +346,53 @@ whyfi/
 
 ---
 
-## Development
+## Design Philosophy
 
-Create and activate the virtual environment:
+WHYFI is meant to be simple on the outside and technically deep underneath.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
+The eventual desktop application should have:
 
-Install WHYFI and development dependencies:
+- No account
+- No login
+- No cloud database
+- No complicated dashboard
+- No chatbot required
+- One primary action: **Diagnose**
 
-```powershell
-pip install -e ".[dev]"
-```
+The experience should feel closer to **Shazam for broken internet** than a traditional network administration utility.
 
-Run the complete test suite:
+The user should not need to understand the networking stack.
 
-```powershell
-pytest -v
-```
+WHYFI should investigate it for them.
 
 ---
 
-## Current Development Snapshot
+## AI Direction
 
-At the current stage, WHYFI has moved beyond a collection of networking scripts.
+AI is intentionally **not** the foundation of WHYFI's diagnostic logic.
 
-The project now contains:
+The deterministic engine is being built first so that WHYFI can continue diagnosing problems even when the internet itself is unavailable.
 
-```text
-Windows network discovery
-        +
-Layered connectivity probes
-        +
-Wi-Fi evidence collection
-        +
-Local IP / DHCP diagnostics
-        +
-DNS comparison
-        +
-Packet-loss analysis
-        +
-Jitter measurement
-        +
-Deeper quality sampling
-        +
-Failure-point localization
-        +
-Evidence-based diagnosis
-        +
-38 automated tests
-```
+A later AI layer may help with:
 
-The next major milestone is making this engine easily usable through a simple local interface before beginning the desktop UI.
+- Ambiguous cases
+- Follow-up tool selection
+- More natural explanations
+- Guided troubleshooting
+
+But measurable network evidence will remain the source of truth.
 
 ---
 
-## Future Ideas
+## Next Milestone
 
-Potential post-V1 features include:
+**V0.4 — Desktop Application**
 
-- Loaded latency testing
-- Bufferbloat detection
-- Speed testing
-- VPN detection
-- Captive portal detection
-- TLS diagnostics
-- IPv6 diagnostics
-- MTU problem detection
-- Advanced traceroute analysis
-- Network history and trend analysis
-- Automatic comparison between Wi-Fi and Ethernet
-- Router / ISP outage correlation
-- macOS support
-- Linux support
+The next phase is wrapping the working diagnostic engine in a lightweight Tauri + React interface with one central action:
 
----
+> **Diagnose**
 
-## Project Goal
-
-WHYFI is being built as both a practical networking utility and an exploration of how deterministic systems diagnostics can be combined with constrained AI agents.
-
-The objective is **not** to build an AI wrapper around networking commands.
-
-The objective is to build a reliable diagnostic system first, prove its conclusions with measurable evidence and automated tests, and then use AI only where it provides genuine value.
-
-WHYFI should eventually feel simple enough that anyone can use it:
+The goal is simple:
 
 > Press Diagnose.  
 > Wait a few seconds.  
