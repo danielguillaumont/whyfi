@@ -4,7 +4,7 @@
 
 WHYFI is a Windows network diagnostic tool that investigates connectivity problems, identifies the most likely failure point, and explains what is happening in plain language.
 
-Instead of asking the user to understand DNS, DHCP, gateways, routing, packet loss, or jitter, WHYFI collects the evidence automatically and answers the useful question:
+Instead of asking users to understand DNS, DHCP, gateways, routing, packet loss, or jitter, WHYFI collects the evidence automatically and answers:
 
 > **Why isn't my internet working properly?**
 
@@ -12,26 +12,39 @@ Instead of asking the user to understand DNS, DHCP, gateways, routing, packet lo
 
 ## Current Status
 
-🚧 **Active Development — Diagnostic engine and CLI are working**
+🚧 **Active Development — Diagnostic engine, CLI, and desktop shell are working**
 
-WHYFI currently includes a functioning Windows diagnostic engine, evidence-based diagnosis system, deeper connection-quality testing, and a usable command-line interface.
+WHYFI currently includes:
 
-It can currently:
+- A functioning Windows diagnostic engine
+- Evidence-based root-cause diagnosis
+- Deeper connection-quality testing
+- A usable command-line interface
+- A native Tauri desktop application shell
+- A WHYFI-branded React desktop interface
+- 44 automated tests
 
-- Discover Windows network adapters and the primary connection
-- Identify the default route and gateway
-- Inspect local IPv4 and DHCP configuration
-- Detect APIPA / `169.254.x.x` addressing
-- Inspect Wi-Fi signal, channel, radio type, and link rate
-- Measure latency, packet loss, and jitter
-- Test gateway and direct internet reachability
-- Compare the configured DNS resolver with public resolvers
-- Distinguish local network instability from upstream instability
-- Avoid false conclusions from a single noisy public endpoint
-- Produce evidence-backed diagnoses, confidence scores, and recommendations
-- Show live diagnostic progress
-- Expose raw technical measurements when requested
-- Run through the installed `whyfi` command
+The desktop interface is currently being connected to the existing Python diagnostic engine.
+
+---
+
+## What WHYFI Can Diagnose
+
+WHYFI currently checks:
+
+- Windows network adapters
+- Primary network connection
+- Default route and gateway
+- IPv4 configuration
+- DHCP / APIPA issues
+- Wi-Fi signal and connection information
+- Gateway reachability
+- Internet reachability
+- DNS resolution
+- Packet loss
+- Latency
+- Jitter
+- Local vs upstream instability
 
 Current diagnosis types:
 
@@ -47,9 +60,13 @@ unstable_connection
 unknown
 ```
 
+WHYFI deliberately combines multiple pieces of evidence before blaming a specific part of the connection.
+
+For example, weak Wi-Fi signal alone is not enough to diagnose a Wi-Fi problem, and one noisy public server is not enough to declare the internet connection unstable.
+
 ---
 
-## Example
+## Example Diagnosis
 
 ```text
 WHYFI
@@ -79,7 +96,7 @@ Recommendation:
 No action is needed based on the baseline checks.
 ```
 
-WHYFI uses deterministic evidence-based rules for its current diagnoses. Network measurements remain the source of truth.
+Network measurements remain the source of truth.
 
 ---
 
@@ -112,9 +129,9 @@ Diagnosis Engine
 Cause + Confidence + Recommendation
 ```
 
-A deeper quality investigation also takes multiple samples from the local gateway and independent public targets.
+A deeper quality investigation also takes multiple samples from the gateway and independent public targets.
 
-This allows WHYFI to distinguish between:
+This helps distinguish:
 
 ```text
 Computer <-> Router instability
@@ -122,15 +139,13 @@ Computer <-> Router instability
 Local network problem
 ```
 
-and:
+from:
 
 ```text
 Router stable + multiple public targets unstable
             =
-Likely upstream / ISP-side problem
+Likely upstream / ISP problem
 ```
-
-WHYFI is deliberately conservative. Weak Wi-Fi alone does not automatically mean Wi-Fi is broken, and one noisy internet endpoint is not enough to declare the connection unstable.
 
 ---
 
@@ -144,19 +159,19 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-Run a standard diagnosis:
+Run the standard diagnosis:
 
 ```powershell
 whyfi
 ```
 
-Run a deeper packet-loss and jitter investigation:
+Run deeper packet-loss and jitter analysis:
 
 ```powershell
 whyfi --quality
 ```
 
-Show the baseline diagnosis plus raw technical measurements:
+Show raw technical measurements:
 
 ```powershell
 whyfi --details
@@ -170,45 +185,44 @@ whyfi --help
 
 ---
 
-## Diagnostic Areas
+## Desktop Application
 
-### Local Network
+WHYFI now has a working Tauri + React desktop shell.
 
-WHYFI checks:
+The first interface is running locally with the intended simple product direction:
 
-- Active network adapters
-- Primary connection
-- Default gateway
-- IPv4 configuration
-- DHCP / APIPA issues
-- Gateway reachability
-- Local packet loss
-- Wi-Fi signal quality
+> **What's wrong with my internet?**
 
-### Internet
+The desktop experience is being designed around three main states:
 
-WHYFI checks multiple independent public targets for:
+```text
+READY
+  |
+  v
+DIAGNOSING
+  |
+  v
+RESULT
+```
 
-- Reachability
-- Packet loss
-- Minimum / average / maximum latency
-- Jitter
-- Upstream instability
+The next step is connecting the **Diagnose** button to the existing Python diagnostic engine.
 
-### DNS
+### Run the Desktop App
 
-WHYFI can:
+From the `desktop` directory:
 
-- Detect the configured resolver
-- Test DNS resolution
-- Compare against alternate public resolvers
-- Distinguish DNS failure from general internet failure
+```powershell
+npm install
+npm run tauri dev
+```
+
+Windows development requires the Visual Studio C++ build tools and Windows SDK required by Tauri/Rust.
 
 ---
 
 ## Testing
 
-WHYFI currently has **44 automated pytest tests** covering diagnostic rules, parsers, edge cases, failure scenarios, CLI behavior, and progress reporting.
+WHYFI currently has **44 automated pytest tests**.
 
 Current result:
 
@@ -216,13 +230,13 @@ Current result:
 44 passed
 ```
 
-Run the suite with:
+Run the full suite with:
 
 ```powershell
 pytest -v
 ```
 
-Examples of covered scenarios include:
+Coverage includes:
 
 - Healthy connection
 - No primary connection
@@ -243,7 +257,7 @@ Examples of covered scenarios include:
 
 ## Technology
 
-### Current
+### Diagnostic Engine
 
 - Python 3.12
 - `psutil`
@@ -252,17 +266,23 @@ Examples of covered scenarios include:
 - Windows `ping`
 - Windows `netsh`
 - pytest
-- Git / GitHub
 
 ### Desktop Application
 
-Planned for the next phase:
-
-- Tauri
-- React
+- Tauri 2
+- Rust
+- React 19
 - TypeScript
 - Vite
-- Tailwind CSS
+- Windows WebView
+- Custom CSS
+
+### Development
+
+- Git
+- GitHub
+- Visual Studio Build Tools
+- Node.js / npm
 
 ---
 
@@ -314,11 +334,14 @@ Planned for the next phase:
 
 ### V0.4 — Desktop Application
 
-**Status: Next**
+**Status: In progress**
 
-- [ ] Tauri application shell
-- [ ] React interface
-- [ ] One-click Diagnose flow
+- [x] Tauri application shell
+- [x] React + TypeScript frontend
+- [x] WHYFI-branded initial interface
+- [x] Native Windows development build
+- [ ] Ready → Diagnosing → Result flow
+- [ ] Connect desktop app to Python diagnostic engine
 - [ ] Live diagnostic progress
 - [ ] Result screen
 - [ ] Technical-details view
@@ -348,22 +371,22 @@ Planned for the next phase:
 
 ## Design Philosophy
 
-WHYFI is meant to be simple on the outside and technically deep underneath.
+WHYFI should be simple on the outside and technically deep underneath.
 
-The eventual desktop application should have:
+The finished application should have:
 
 - No account
 - No login
-- No cloud database
-- No complicated dashboard
-- No chatbot required
+- No cloud dashboard
+- No complicated controls
+- No networking knowledge required
 - One primary action: **Diagnose**
 
-The experience should feel closer to **Shazam for broken internet** than a traditional network administration utility.
+The goal is closer to **Shazam for broken internet** than a traditional network administration tool.
 
-The user should not need to understand the networking stack.
-
-WHYFI should investigate it for them.
+> Press Diagnose.  
+> Wait a few seconds.  
+> Understand what is wrong.
 
 ---
 
@@ -371,13 +394,13 @@ WHYFI should investigate it for them.
 
 AI is intentionally **not** the foundation of WHYFI's diagnostic logic.
 
-The deterministic engine is being built first so that WHYFI can continue diagnosing problems even when the internet itself is unavailable.
+The deterministic engine is being built first so the application can still diagnose problems when the internet itself is unavailable.
 
 A later AI layer may help with:
 
 - Ambiguous cases
 - Follow-up tool selection
-- More natural explanations
+- Natural-language explanations
 - Guided troubleshooting
 
 But measurable network evidence will remain the source of truth.
@@ -386,14 +409,24 @@ But measurable network evidence will remain the source of truth.
 
 ## Next Milestone
 
-**V0.4 — Desktop Application**
+### Connect the Desktop App to the Diagnostic Engine
 
-The next phase is wrapping the working diagnostic engine in a lightweight Tauri + React interface with one central action:
+The Tauri + React application shell and first WHYFI interface are now running.
 
-> **Diagnose**
+The next step is turning the **Diagnose** button into a real investigation:
 
-The goal is simple:
+```text
+Ready
+  ↓
+Diagnosing
+  ↓
+Result
+```
 
-> Press Diagnose.  
-> Wait a few seconds.  
-> Understand what is wrong.
+That result will come from the same deterministic Python engine already used by the CLI and will display:
+
+- Diagnosis
+- Confidence
+- Evidence
+- Recommendation
+- Technical details
