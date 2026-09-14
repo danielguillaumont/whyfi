@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import "./App.css";
 
 type AppState = "ready" | "diagnosing" | "result" | "error";
@@ -13,24 +14,64 @@ type Diagnosis = {
   recommendation: string;
 };
 
-type WhyfiResult = {
+type ProgressEvent = {
+  type: "progress";
+  message: string;
+};
+
+type ResultEvent = {
+  type: "result";
   diagnosis: Diagnosis;
   details: unknown;
 };
+
+type DiagnosticEvent = ProgressEvent | ResultEvent;
 
 function App() {
   const [appState, setAppState] = useState<AppState>("ready");
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [progressMessage, setProgressMessage] = useState(
+    "Preparing diagnostic engine..."
+  );
 
   async function handleDiagnose() {
     setAppState("diagnosing");
     setDiagnosis(null);
     setErrorMessage("");
+    setProgressMessage("Preparing diagnostic engine...");
+
+    let unlisten: UnlistenFn | null = null;
 
     try {
+      unlisten = await listen<string>(
+        "whyfi-diagnostic-event",
+        (event) => {
+          try {
+            const diagnosticEvent = JSON.parse(
+              event.payload
+            ) as DiagnosticEvent;
+
+            if (diagnosticEvent.type === "progress") {
+              setProgressMessage(diagnosticEvent.message);
+            }
+          } catch (error) {
+            console.error(
+              "Could not parse WHYFI diagnostic event:",
+              error
+            );
+          }
+        }
+      );
+
       const response = await invoke<string>("run_diagnosis");
-      const result: WhyfiResult = JSON.parse(response);
+      const result = JSON.parse(response) as DiagnosticEvent;
+
+      if (result.type !== "result") {
+        throw new Error(
+          "WHYFI did not return a final diagnostic result."
+        );
+      }
 
       setDiagnosis(result.diagnosis);
       setAppState("result");
@@ -42,6 +83,10 @@ function App() {
       );
 
       setAppState("error");
+    } finally {
+      if (unlisten) {
+        unlisten();
+      }
     }
   }
 
@@ -148,7 +193,7 @@ function App() {
 
             <div className="scan-line">
               <span className="scan-pulse" />
-              Running local diagnostic engine
+              {progressMessage}
             </div>
 
             <p className="diagnosing-note">
@@ -187,7 +232,9 @@ function App() {
                 <div className="evidence-list">
                   {diagnosis.evidence.map((item, index) => (
                     <div className="evidence-item" key={`${item}-${index}`}>
-                      <span className="evidence-check">{"\u2713"}</span>
+                      <span className="evidence-check">
+                        {"\u2713"}
+                      </span>
                       <span>{item}</span>
                     </div>
                   ))}
@@ -206,7 +253,9 @@ function App() {
                 type="button"
                 onClick={handleDiagnose}
               >
-                <span className="diagnose-button-icon">{"\u21bb"}</span>
+                <span className="diagnose-button-icon">
+                  {"\u21bb"}
+                </span>
                 Diagnose again
               </button>
 
@@ -267,4 +316,3 @@ function App() {
 }
 
 export default App;
-
