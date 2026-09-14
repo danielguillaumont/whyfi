@@ -51,6 +51,26 @@ def _print_technical_details(data: object) -> None:
     print()
 
 
+def _print_json_result(
+    diagnosis: DiagnosisResult,
+    details: object,
+) -> None:
+    """Output a machine-readable WHYFI diagnostic result."""
+
+    payload = {
+        "diagnosis": asdict(diagnosis),
+        "details": asdict(details),
+    }
+
+    print(
+        json.dumps(
+            payload,
+            indent=2,
+            default=str,
+        )
+    )
+
+
 def _run_baseline() -> DiagnosisResult:
     """Run WHYFI's standard baseline investigation."""
 
@@ -77,9 +97,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog="WHYFI",
-        description=(
-            "Find out why your internet is acting weird."
-        ),
+        description="Find out why your internet is acting weird.",
     )
 
     mode = parser.add_mutually_exclusive_group()
@@ -87,20 +105,32 @@ def main() -> None:
     mode.add_argument(
         "--quality",
         action="store_true",
-        help=(
-            "Run a deeper packet-loss and jitter investigation."
-        ),
+        help="Run a deeper packet-loss and jitter investigation.",
     )
 
     mode.add_argument(
         "--details",
         action="store_true",
-        help=(
-            "Show the baseline diagnosis and raw technical measurements."
-        ),
+        help="Show the baseline diagnosis and raw technical measurements.",
+    )
+
+    mode.add_argument(
+        "--json",
+        action="store_true",
+        help="Output the baseline diagnosis as machine-readable JSON.",
     )
 
     args = parser.parse_args()
+
+    if args.json:
+        baseline = run_baseline_diagnostics()
+        diagnosis = diagnose_baseline(baseline)
+
+        _print_json_result(
+            diagnosis,
+            baseline,
+        )
+        return
 
     print()
     print("WHYFI")

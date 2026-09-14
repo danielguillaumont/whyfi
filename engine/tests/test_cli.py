@@ -1,5 +1,6 @@
 """Command-line interface tests for WHYFI."""
 
+import json
 import sys
 
 from whyfi import __main__ as cli
@@ -151,3 +152,58 @@ def test_details_flag_prints_technical_measurements(
     assert "Technical details:" in output
     assert '"completed": false' in output
     assert '"error": "Test diagnostic data."' in output
+
+
+def test_json_flag_outputs_machine_readable_result(
+    monkeypatch,
+    capsys,
+) -> None:
+    """The --json flag should return structured diagnostic data."""
+
+    from whyfi.models.diagnostic import BaselineDiagnosticResult
+
+    baseline = BaselineDiagnosticResult(
+        connection=None,
+        gateway=None,
+        internet=None,
+        dns=None,
+        completed=True,
+        error=None,
+    )
+
+    diagnosis = make_diagnosis()
+
+    monkeypatch.setattr(
+        cli,
+        "run_baseline_diagnostics",
+        lambda: baseline,
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "diagnose_baseline",
+        lambda result: diagnosis,
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["whyfi", "--json"],
+    )
+
+    cli.main()
+
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+
+    assert payload["diagnosis"]["code"] == "healthy"
+    assert payload["diagnosis"]["title"] == "Everything looks healthy."
+    assert payload["diagnosis"]["confidence"] == 96
+    assert payload["diagnosis"]["evidence"] == [
+        "Gateway reachable.",
+        "DNS resolution successful.",
+    ]
+    assert payload["diagnosis"]["recommendation"] == "No action is needed."
+
+    assert payload["details"]["completed"] is True
+    assert payload["details"]["error"] is None
