@@ -1,15 +1,52 @@
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+
+type Diagnosis = {
+  code: string;
+  title: string;
+  confidence: number;
+  summary: string;
+  evidence: string[];
+  recommendation: string;
+};
+
+type WhyfiResult = {
+  diagnosis: Diagnosis;
+  details: unknown;
+};
 
 function App() {
   const [statusMessage, setStatusMessage] = useState(
     "Ready when you are."
   );
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
+  const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
 
-  function handleDiagnose() {
-    setStatusMessage(
-      "Desktop shell is ready. Connecting the diagnostic engine is next."
-    );
+  async function handleDiagnose() {
+    setIsDiagnosing(true);
+    setDiagnosis(null);
+    setStatusMessage("Investigating your network...");
+
+    try {
+      const response = await invoke<string>("run_diagnosis");
+      const result: WhyfiResult = JSON.parse(response);
+
+      setDiagnosis(result.diagnosis);
+      setStatusMessage(
+        `${result.diagnosis.title} Confidence: ${result.diagnosis.confidence}%`
+      );
+    } catch (error) {
+      console.error("WHYFI diagnosis failed:", error);
+
+      setStatusMessage(
+        `Diagnosis failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    } finally {
+      setIsDiagnosing(false);
+    }
   }
 
   return (
@@ -45,12 +82,33 @@ function App() {
             className="diagnose-button"
             type="button"
             onClick={handleDiagnose}
+            disabled={isDiagnosing}
           >
-            <span className="diagnose-button-icon">+</span>
-            Diagnose
+            <span className="diagnose-button-icon">
+              {isDiagnosing ? "..." : "+"}
+            </span>
+
+            {isDiagnosing ? "Diagnosing..." : "Diagnose"}
           </button>
 
           <p className="status-message">{statusMessage}</p>
+
+          {diagnosis && (
+            <section className="diagnosis-preview">
+              <h2>{diagnosis.title}</h2>
+
+              <p>
+                <strong>Confidence:</strong> {diagnosis.confidence}%
+              </p>
+
+              <p>{diagnosis.summary}</p>
+
+              <p>
+                <strong>Recommendation:</strong>{" "}
+                {diagnosis.recommendation}
+              </p>
+            </section>
+          )}
         </section>
 
         <section className="check-grid" aria-label="WHYFI diagnostic areas">
