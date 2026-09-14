@@ -103,3 +103,51 @@ def test_cli_prints_evidence_and_recommendation(capsys) -> None:
     assert "DNS resolution successful." in output
     assert "Recommendation:" in output
     assert "No action is needed." in output
+
+
+def test_details_flag_prints_technical_measurements(
+    monkeypatch,
+    capsys,
+) -> None:
+    """The --details flag should show raw baseline measurements."""
+
+    from whyfi.models.diagnostic import BaselineDiagnosticResult
+
+    baseline = BaselineDiagnosticResult(
+        connection=None,
+        gateway=None,
+        internet=None,
+        dns=None,
+        completed=False,
+        error="Test diagnostic data.",
+    )
+
+    diagnosis = make_diagnosis()
+
+    monkeypatch.setattr(
+        cli,
+        "run_baseline_diagnostics",
+        lambda: baseline,
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "diagnose_baseline",
+        lambda result: diagnosis,
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["whyfi", "--details"],
+    )
+
+    cli.main()
+
+    output = capsys.readouterr().out
+
+    assert "Investigating your network..." in output
+    assert "Everything looks healthy." in output
+    assert "Technical details:" in output
+    assert '"completed": false' in output
+    assert '"error": "Test diagnostic data."' in output

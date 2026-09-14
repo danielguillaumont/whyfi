@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+from dataclasses import asdict
 
 from whyfi.diagnosis.engine import diagnose_baseline
 from whyfi.diagnosis.quality import diagnose_connection_quality
@@ -35,6 +37,20 @@ def _print_diagnosis(diagnosis: DiagnosisResult) -> None:
     print()
 
 
+def _print_technical_details(data: object) -> None:
+    """Display structured diagnostic measurements."""
+
+    print("Technical details:")
+    print(
+        json.dumps(
+            asdict(data),
+            indent=2,
+            default=str,
+        )
+    )
+    print()
+
+
 def _run_baseline() -> DiagnosisResult:
     """Run WHYFI's standard baseline investigation."""
 
@@ -61,11 +77,21 @@ def main() -> None:
         ),
     )
 
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+
+    mode.add_argument(
         "--quality",
         action="store_true",
         help=(
             "Run a deeper packet-loss and jitter investigation."
+        ),
+    )
+
+    mode.add_argument(
+        "--details",
+        action="store_true",
+        help=(
+            "Show the baseline diagnosis and raw technical measurements."
         ),
     )
 
@@ -78,10 +104,20 @@ def main() -> None:
     if args.quality:
         print("Running deeper connection-quality analysis...")
         diagnosis = _run_quality()
-    else:
-        print("Investigating your network...")
-        diagnosis = _run_baseline()
+        _print_diagnosis(diagnosis)
+        return
 
+    if args.details:
+        print("Investigating your network...")
+        baseline = run_baseline_diagnostics()
+        diagnosis = diagnose_baseline(baseline)
+
+        _print_diagnosis(diagnosis)
+        _print_technical_details(baseline)
+        return
+
+    print("Investigating your network...")
+    diagnosis = _run_baseline()
     _print_diagnosis(diagnosis)
 
 
