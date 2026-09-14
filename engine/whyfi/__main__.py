@@ -54,7 +54,9 @@ def _print_technical_details(data: object) -> None:
 def _run_baseline() -> DiagnosisResult:
     """Run WHYFI's standard baseline investigation."""
 
-    baseline = run_baseline_diagnostics()
+    baseline = run_baseline_diagnostics(
+        progress=print,
+    )
 
     return diagnose_baseline(baseline)
 
@@ -62,7 +64,10 @@ def _run_baseline() -> DiagnosisResult:
 def _run_quality() -> DiagnosisResult:
     """Run WHYFI's deeper connection-quality investigation."""
 
-    quality = check_connection_quality(sample_count=10)
+    quality = check_connection_quality(
+        sample_count=10,
+        progress=print,
+    )
 
     return diagnose_connection_quality(quality)
 

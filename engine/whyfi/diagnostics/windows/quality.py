@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from whyfi.diagnostics.windows.ping import ping_host
 from whyfi.diagnostics.windows.primary import get_primary_connection
 from whyfi.models.quality import ConnectionQualityResult
@@ -16,14 +18,32 @@ _GATEWAY_JITTER_THRESHOLD_MS = 15.0
 _INTERNET_JITTER_THRESHOLD_MS = 30.0
 _PACKET_LOSS_THRESHOLD_PERCENT = 10.0
 
+ProgressCallback = Callable[[str], None]
+
+
+def _report_progress(
+    progress: ProgressCallback | None,
+    message: str,
+) -> None:
+    """Send a progress message when a callback is available."""
+
+    if progress is not None:
+        progress(message)
+
 
 def check_connection_quality(
     sample_count: int = 10,
+    progress: ProgressCallback | None = None,
 ) -> ConnectionQualityResult:
     """Run a deeper packet-loss and jitter investigation."""
 
     if sample_count < 2:
         raise ValueError("sample_count must be at least 2")
+
+    _report_progress(
+        progress,
+        "Finding your active connection...",
+    )
 
     try:
         connection = get_primary_connection()
@@ -41,18 +61,35 @@ def check_connection_quality(
             error="No primary network connection was found.",
         )
 
+    _report_progress(
+        progress,
+        "Measuring your router connection...",
+    )
+
     gateway = ping_host(
         connection.gateway,
         count=sample_count,
     )
 
-    internet_probes = [
-        ping_host(
-            target,
-            count=sample_count,
+    internet_probes = []
+
+    for target in _DEFAULT_PUBLIC_TARGETS:
+        _report_progress(
+            progress,
+            f"Testing {target}...",
         )
-        for target in _DEFAULT_PUBLIC_TARGETS
-    ]
+
+        internet_probes.append(
+            ping_host(
+                target,
+                count=sample_count,
+            )
+        )
+
+    _report_progress(
+        progress,
+        "Analyzing connection stability...",
+    )
 
     gateway_high_jitter = (
         gateway.jitter_ms is not None
