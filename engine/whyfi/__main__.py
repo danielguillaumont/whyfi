@@ -71,6 +71,46 @@ def _print_json_result(
     )
 
 
+def _emit_stream_event(
+    event_type: str,
+    **payload: object,
+) -> None:
+    """Emit one machine-readable streaming event."""
+
+    event = {
+        "type": event_type,
+        **payload,
+    }
+
+    print(
+        json.dumps(
+            event,
+            separators=(",", ":"),
+            default=str,
+        ),
+        flush=True,
+    )
+
+
+def _run_streaming_baseline() -> None:
+    """Run baseline diagnostics and stream progress as JSON lines."""
+
+    baseline = run_baseline_diagnostics(
+        progress=lambda message: _emit_stream_event(
+            "progress",
+            message=message,
+        )
+    )
+
+    diagnosis = diagnose_baseline(baseline)
+
+    _emit_stream_event(
+        "result",
+        diagnosis=asdict(diagnosis),
+        details=asdict(baseline),
+    )
+
+
 def _run_baseline() -> DiagnosisResult:
     """Run WHYFI's standard baseline investigation."""
 
@@ -120,7 +160,17 @@ def main() -> None:
         help="Output the baseline diagnosis as machine-readable JSON.",
     )
 
+    mode.add_argument(
+        "--stream-json",
+        action="store_true",
+        help="Stream diagnostic progress and the final result as JSON lines.",
+    )
+
     args = parser.parse_args()
+
+    if args.stream_json:
+        _run_streaming_baseline()
+        return
 
     if args.json:
         baseline = run_baseline_diagnostics()

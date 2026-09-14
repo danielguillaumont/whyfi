@@ -207,3 +207,68 @@ def test_json_flag_outputs_machine_readable_result(
 
     assert payload["details"]["completed"] is True
     assert payload["details"]["error"] is None
+
+
+def test_stream_json_outputs_progress_and_result(
+    monkeypatch,
+    capsys,
+) -> None:
+    """The --stream-json flag should emit progress and a final result."""
+
+    from whyfi.models.diagnostic import BaselineDiagnosticResult
+
+    baseline = BaselineDiagnosticResult(
+        connection=None,
+        gateway=None,
+        internet=None,
+        dns=None,
+        completed=True,
+        error=None,
+    )
+
+    diagnosis = make_diagnosis()
+
+    def fake_baseline(progress=None):
+        if progress is not None:
+            progress("Checking network configuration...")
+            progress("Testing internet access...")
+
+        return baseline
+
+    monkeypatch.setattr(
+        cli,
+        "run_baseline_diagnostics",
+        fake_baseline,
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "diagnose_baseline",
+        lambda result: diagnosis,
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["whyfi", "--stream-json"],
+    )
+
+    cli.main()
+
+    lines = capsys.readouterr().out.strip().splitlines()
+    events = [json.loads(line) for line in lines]
+
+    assert events[0] == {
+        "type": "progress",
+        "message": "Checking network configuration...",
+    }
+
+    assert events[1] == {
+        "type": "progress",
+        "message": "Testing internet access...",
+    }
+
+    assert events[2]["type"] == "result"
+    assert events[2]["diagnosis"]["code"] == "healthy"
+    assert events[2]["diagnosis"]["confidence"] == 96
+    assert events[2]["details"]["completed"] is True
