@@ -630,3 +630,13 @@ button {
     animation: none;
   }
 }
+
+.result-problem .evidence-check {
+  color: #ffb26b;
+  background: rgba(255, 178, 107, 0.08);
+}
+
+.result-neutral .evidence-check {
+  color: #929baa;
+  background: rgba(146, 155, 170, 0.08);
+}
