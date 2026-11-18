@@ -85,3 +85,7 @@ jobs:
           # Tauri's build script otherwise tries to copy the packaged sidecar.
           TAURI_CONFIG: '{"bundle":{"externalBin":[]}}'
         run: cargo +stable check --locked --all-targets
+      - name: Test the sidecar protocol without packaging
+        env:
+          TAURI_CONFIG: '{"bundle":{"externalBin":[]}}'
+        run: cargo +stable test --locked --lib

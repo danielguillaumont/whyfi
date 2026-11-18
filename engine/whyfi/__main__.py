@@ -88,6 +88,7 @@ def _emit_stream_event(
             event,
             separators=(",", ":"),
             default=str,
+            allow_nan=False,
         ),
         flush=True,
     )
@@ -170,7 +171,13 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.stream_json:
-        _run_streaming_baseline()
+        try:
+            _run_streaming_baseline()
+        except Exception as exc:
+            _emit_stream_event(
+                "error", message=f"WHYFI could not complete the diagnosis: {exc}"
+            )
+            raise SystemExit(1) from None
         return
 
     if args.json:

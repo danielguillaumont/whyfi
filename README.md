@@ -208,17 +208,38 @@ Structured JSON Events
 Live Progress + Result
 ```
 
-The diagnostic engine streams newline-delimited JSON events.
+The Rust bridge runs the bundled Python engine with `--stream-json`.
+The engine writes UTF-8-compatible newline-delimited JSON to stdout and flushes
+each event. LF and CRLF line endings are accepted. The stream has zero or more
+progress events followed by exactly one terminal event. Blank lines are ignored:
 
-Example:
+| `type` | Payload | Meaning |
+| --- | --- | --- |
+| `progress` | `message` string | Status update forwarded to the desktop. |
+| `result` | `diagnosis` and `details` objects | Final diagnosis, including inconclusive diagnoses and probe failures recorded in technical details. A successful stream exits with status 0. |
+| `error` | `message` string | Fatal engine error. The CLI emits this event and exits with status 1. |
 
-```json
-{"type":"progress","message":"Checking your router..."}
-{"type":"progress","message":"Testing internet access..."}
-{"type":"result","diagnosis":{"code":"healthy","confidence":96}}
-```
+Rust buffers raw stdout bytes until it has a complete line. It validates the
+event type, required diagnosis fields, and the technical fields rendered by
+React. Unavailable measurements may be null, and additional engine fields pass
+through. React receives the existing progress event payload and gets the
+validated result once, as the command response.
 
-Tauri receives these events from the bundled engine and forwards them to the React interface.
+Each stdout record may contain up to **1 MiB (1,048,576 bytes)** before the
+LF delimiter, including any preceding CR. This leaves room for a full diagnostic
+snapshot and also bounds incomplete lines. The bridge retains the first
+**8 KiB** of stderr for error context and marks the displayed excerpt if more
+was discarded.
+
+Malformed JSON, invalid UTF-8, unknown event types, an unfinished line, extra
+events after the terminal event, a missing result, or an unsuccessful process
+exit rejects the desktop command. An oversized record also rejects the command.
+The existing error view shows the failure and
+allows a retry. Stderr is diagnostic output outside the protocol and can provide
+context for a failed exit when there is no structured error event.
+After detecting a protocol error, the bridge drains both output pipes with
+bounded retention and waits for the sidecar to exit. A hung sidecar can still
+keep the command pending until process lifecycle handling is added in R01D-B.
 
 The deterministic network engine remains the source of truth.
 
@@ -288,7 +309,8 @@ whyfi --stream-json
 `--json` prints a single object with `diagnosis` and `details`.
 `--stream-json` prints one JSON object per line, with `type: "progress"`
 for progress messages and `type: "result"` for the final object carrying
-the same `diagnosis` and `details`.
+the same `diagnosis` and `details`. A fatal streaming failure emits
+`{"type":"error","message":"..."}` and exits nonzero.
 
 - `diagnosis.confidence` is a percentage when assigned and `null` when
   WHYFI cannot assign a confidence score.
@@ -406,14 +428,15 @@ The [CI workflow](.github/workflows/ci.yml) runs on pull requests targeting
 | --- | --- | --- |
 | Python | Windows, Python 3.12 | Installs WHYFI and pytest, checks Python syntax, and runs the full suite. Windows probes are covered by deterministic mocks and fixtures. |
 | Frontend | Ubuntu, Node 22 | Installs from the npm lockfile, type-checks the Vite config, and runs the application TypeScript and Vite build. |
-| Rust / Tauri | Windows, stable Rust | Runs rustfmt in check mode and type-checks all Cargo targets with the tracked lockfile. A step-local Tauri override clears `externalBin` so this check can run on a clean checkout. |
+| Rust / Tauri | Windows, stable Rust | Runs rustfmt, checks all locked Cargo targets, and runs the Rust library tests with synthetic sidecar streams. Step-local Tauri overrides clear `externalBin` so both Cargo commands can run on a clean checkout. |
 
 CI caches dependency downloads. Every run still installs or resolves dependencies
 and runs the checks. The workflow uses read-only repository permissions and
 cancels superseded runs on the same ref.
 
-The Rust check uses the development configuration and runs without a packaged
-sidecar. Live Windows diagnostics, sidecar execution, installer builds, and
+The Rust checks use the development configuration. The protocol tests feed
+synthetic byte streams into the parser without launching a packaged sidecar.
+Live Windows diagnostics, real sidecar transport, installer builds, and
 installed-app behavior remain separate verification steps.
 
 ---
