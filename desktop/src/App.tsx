@@ -46,6 +46,7 @@ type DnsQueryDetails = {
   resolver?: string | null;
   success?: boolean | null;
   latency_ms?: number | null;
+  error?: string | null;
 };
 
 type DnsDetails = {
@@ -53,6 +54,8 @@ type DnsDetails = {
   default_resolver?: string | null;
   default_query?: DnsQueryDetails | null;
   likely_dns_issue?: boolean | null;
+  configured_queries?: DnsQueryDetails[];
+  error?: string | null;
 };
 
 type WifiDetails = {
@@ -63,6 +66,7 @@ type WifiDetails = {
   channel?: number | null;
   receive_rate_mbps?: number | null;
   transmit_rate_mbps?: number | null;
+  error?: string | null;
 };
 
 type LocalConfigDetails = {
@@ -708,26 +712,35 @@ function App() {
 
                       <div className="evidence-list">
                         <DetailRow
-                          label="Healthy"
-                          value={yesNo(details.dns.healthy)}
+                          label="Test name resolved"
+                          value={yesNo(details.dns.healthy) ?? "Unavailable"}
                         />
                         <DetailRow
-                          label="Resolver"
+                          label="First configured resolver"
                           value={details.dns.default_resolver}
                         />
                         <DetailRow
-                          label="Query latency"
+                          label="First resolver latency"
                           value={metric(
                             details.dns.default_query?.latency_ms,
                             "ms"
                           )}
                         />
-                        <DetailRow
-                          label="DNS issue detected"
-                          value={yesNo(
-                            details.dns.likely_dns_issue
-                          )}
-                        />
+                        <DetailRow label="Details" value={details.dns.error} />
+                        {details.dns.configured_queries?.map((query) => (
+                          <DetailRow
+                            key={query.resolver}
+                            label={query.resolver ?? "Configured resolver"}
+                            value={
+                              query.success
+                                ? metric(query.latency_ms, "ms") ?? "Resolved"
+                                : [
+                                    query.success === false ? "Lookup failed" : "Unavailable",
+                                    query.error,
+                                  ].filter(Boolean).join(" — ")
+                            }
+                          />
+                        ))}
                       </div>
                     </article>
                   )}
@@ -741,8 +754,10 @@ function App() {
                       <div className="evidence-list">
                         <DetailRow
                           label="Connected"
-                          value={yesNo(details.wifi.connected)}
+                          value={yesNo(details.wifi.connected) ?? "Unavailable"}
                         />
+                        <DetailRow label="Interface" value={details.wifi.interface_name} />
+                        <DetailRow label="Details" value={details.wifi.error} />
                         <DetailRow
                           label="Signal"
                           value={metric(

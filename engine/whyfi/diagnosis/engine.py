@@ -105,7 +105,6 @@ def diagnose_baseline(
         or gateway.reachable is None
         or internet is None
         or internet.reachable is None
-        or dns is None
         or any(
             error.check in {"gateway", "internet", "local_config"}
             for error in result.collection_errors
@@ -271,52 +270,35 @@ def diagnose_baseline(
             ),
         )
 
-    # Internet works directly by IP, while the configured DNS resolver fails
-    # and at least one alternate resolver succeeds.
-    if internet.reachable and dns.likely_dns_issue:
-        alternate_successes = sum(
-            1 for query in dns.alternate_queries if query.success
-        )
+    configured_queries = dns.configured_queries if dns is not None else []
+    if not configured_queries and dns is not None and dns.default_query is not None:
+        configured_queries = [dns.default_query]
 
+    if (
+        internet.reachable
+        and dns is not None
+        and dns.healthy is False
+        and dns.measurements_complete
+    ):
         return DiagnosisResult(
             code=DiagnosisCode.DNS_ISSUE,
-            title="Your Wi-Fi's fine. DNS isn't.",
-            confidence=96,
-            summary=(
-                "Your connection can reach the internet directly, but your "
-                "configured DNS resolver failed while an alternate resolver worked."
-            ),
-            evidence=[
-                "Internet reachable by direct IP: yes.",
-                f"Default DNS resolver: {dns.default_resolver or 'Unknown'}.",
-                "Default DNS query failed.",
-                (
-                    f"Alternate DNS resolvers successful: "
-                    f"{alternate_successes}/{len(dns.alternate_queries)}."
-                ),
-            ],
-            recommendation=(
-                "Try using a public DNS resolver such as 1.1.1.1 or 8.8.8.8."
-            ),
-        )
-
-    # Direct-IP internet works but DNS resolution is unhealthy across the board.
-    if internet.reachable and not dns.healthy:
-        return DiagnosisResult(
-            code=DiagnosisCode.DNS_ISSUE,
-            title="DNS resolution isn't working.",
+            title="The DNS test lookup failed.",
             confidence=88,
             summary=(
                 "WHYFI can reach the internet by IP address, but DNS resolution "
-                "did not complete successfully."
+                "through the configured resolvers did not succeed for the test name."
             ),
             evidence=[
                 "Direct-IP internet connectivity succeeded.",
-                f"Default DNS resolver: {dns.default_resolver or 'Unknown'}.",
-                "The configured DNS query failed.",
+                dns.error or "No configured resolver resolved the test name.",
+                *[
+                    f"{query.resolver}: {query.error or 'Lookup did not succeed.'}"
+                    for query in configured_queries
+                ],
             ],
             recommendation=(
-                "Check your DNS configuration or temporarily try another resolver."
+                "Check the DNS settings and any VPN or network policy that applies "
+                "to this connection."
             ),
         )
 
@@ -361,20 +343,45 @@ def diagnose_baseline(
             ),
         )
 
-    # All baseline layers are healthy.
+    resolved = sum(query.success is True for query in configured_queries)
+    partial_dns = 0 < resolved < len(configured_queries)
+    if dns is None or not dns.measurements_complete or partial_dns:
+        evidence = [
+            f"{query.resolver}: {query.error or 'Lookup result unavailable.'}"
+            for query in configured_queries
+            if query.success is not True
+        ]
+        if configured_queries:
+            evidence.insert(
+                0,
+                f"Configured DNS resolvers that resolved the test name: "
+                f"{resolved}/{len(configured_queries)}.",
+            )
+        if dns is not None and dns.error:
+            evidence.append(dns.error)
+        if dns is None and result.error:
+            evidence.append(result.error)
+        return DiagnosisResult(
+            code=DiagnosisCode.UNKNOWN,
+            title=(
+                "DNS works through some configured resolvers."
+                if partial_dns else "The DNS test is inconclusive."
+            ),
+            confidence=None,
+            summary=(
+                "At least one configured resolver answered the test lookup. "
+                "Other configured lookups failed or were unavailable."
+                if partial_dns else
+                "WHYFI could not collect enough evidence about configured DNS resolution."
+            ),
+            evidence=evidence,
+            recommendation="Run the diagnosis again and review the DNS details.",
+        )
+
     if gateway.reachable and internet.reachable and dns.healthy:
         gateway_latency = (
             f"{gateway.average_latency_ms} ms"
             if gateway.average_latency_ms is not None
-            else "Unavailable"
-        )
-
-        dns_latency = (
-            f"{dns.default_query.latency_ms} ms"
-            if (
-                dns.default_query is not None
-                and dns.default_query.latency_ms is not None
-            )
             else "Unavailable"
         )
 
@@ -389,12 +396,13 @@ def diagnose_baseline(
                 f"Public targets reachable: "
                 f"{internet.targets_reachable}/{internet.targets_tested}."
             ),
-            (
-                f"DNS resolver {dns.default_resolver} "
-                f"responded in {dns_latency}."
-            ),
         ]
 
+        if configured_queries:
+            evidence.append(
+                f"Configured DNS resolvers that resolved the test name: "
+                f"{resolved}/{len(configured_queries)}."
+            )
         if (
             connection.adapter_type == "wifi"
             and wifi is not None
@@ -420,9 +428,7 @@ def diagnose_baseline(
                 "are all responding normally."
             ),
             evidence=evidence,
-            recommendation=(
-                "No action is needed based on the baseline checks."
-            ),
+            recommendation="No action is needed based on the baseline checks.",
         )
 
     return DiagnosisResult(

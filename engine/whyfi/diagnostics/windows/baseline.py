@@ -85,16 +85,20 @@ def run_baseline_diagnostics(
                     gateway.target,
                 ))
 
-        if connection.adapter_type == "wifi":
-            _report_progress(
-                progress,
-                "Checking Wi-Fi signal...",
-            )
+        _report_progress(progress, "Checking Wi-Fi signal...")
 
-            try:
-                wifi = get_wifi_connection()
-            except Exception as exc:
-                errors.append(DiagnosticError("wifi", f"Wi-Fi discovery failed: {exc}"))
+        try:
+            wifi = get_wifi_connection(
+                connection.adapter_name, optional=connection.adapter_type != "wifi"
+            )
+        except Exception as exc:
+            errors.append(DiagnosticError("wifi", f"Wi-Fi discovery failed: {exc}"))
+        else:
+            if wifi is not None:
+                if wifi.connected is True:
+                    connection.adapter_type = "wifi"
+                elif wifi.connected is None and wifi.error:
+                    errors.append(DiagnosticError("wifi", wifi.error, connection.adapter_name))
 
     _report_progress(
         progress,
@@ -131,15 +135,26 @@ def run_baseline_diagnostics(
     )
 
     try:
-        dns = check_dns()
+        dns = check_dns(
+            primary_interface_index=connection.interface_index if connection else None
+        )
     except Exception as exc:
         errors.append(DiagnosticError("dns", f"DNS diagnostic failed: {exc}"))
+    else:
+        if dns.healthy is None and dns.error:
+            errors.append(DiagnosticError("dns", dns.error))
+        for query in dns.configured_queries:
+            if query.success is None:
+                errors.append(DiagnosticError(
+                    "dns", query.error or "DNS query unavailable.", query.resolver
+                ))
 
     completed = (
         connection is not None
         and gateway is not None
         and internet is not None
         and dns is not None
+        and dns.measurements_complete
         and local_config is not None
         and internet.reachable is not None
         and not any(error.check in {"gateway", "internet"} for error in errors)

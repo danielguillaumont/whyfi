@@ -2,16 +2,23 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from whyfi.diagnostics.windows import baseline, quality
+from whyfi.models.dns import DNSDiagnosticResult
 from whyfi.models.probes import InternetReachabilityResult, PingResult
+from whyfi.models.wifi import WiFiConnection
 
 
-def test_baseline_reports_progress(monkeypatch) -> None:
+@pytest.mark.parametrize("adapter_type", ["wifi", "other"])
+def test_baseline_reports_progress(monkeypatch, adapter_type) -> None:
     """Baseline diagnostics should report each investigation stage."""
 
     connection = SimpleNamespace(
         gateway="192.0.2.1",
-        adapter_type="wifi",
+        adapter_type=adapter_type,
+        adapter_name="Wi-Fi",
+        interface_index=7,
     )
 
     monkeypatch.setattr(
@@ -32,7 +39,7 @@ def test_baseline_reports_progress(monkeypatch) -> None:
     monkeypatch.setattr(
         baseline,
         "get_wifi_connection",
-        lambda: object(),
+        lambda adapter_name, **kwargs: WiFiConnection(True, adapter_name),
     )
     monkeypatch.setattr(
         baseline,
@@ -42,7 +49,7 @@ def test_baseline_reports_progress(monkeypatch) -> None:
     monkeypatch.setattr(
         baseline,
         "check_dns",
-        lambda: object(),
+        lambda *, primary_interface_index: DNSDiagnosticResult(True, None, None),
     )
 
     messages: list[str] = []
@@ -52,6 +59,8 @@ def test_baseline_reports_progress(monkeypatch) -> None:
     )
 
     assert result.completed is True
+    assert result.connection.adapter_type == "wifi"
+    assert result.wifi.interface_name == "Wi-Fi"
     assert messages == [
         "Checking network configuration...",
         "Finding your active connection...",
