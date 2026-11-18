@@ -276,6 +276,33 @@ for lingering child processes after cancellation or timeout.
 
 The deterministic network engine remains the source of truth.
 
+### Desktop security
+
+The packaged WebView uses Tauri's Content Security Policy. It denies resources
+by default, permits scripts, styles, and images from the bundled app origin,
+and limits connections to Tauri IPC (`ipc:` and `http://ipc.localhost`).
+Tauri can add hashes and nonces for bundled content. The production policy
+omits both `unsafe-inline` and `unsafe-eval`. Tauri's separate
+development policy permits inline code for Vite tooling and loopback HMR on
+port 1420. Treat the development server as a trusted local tool.
+
+Only the local `main` window receives the investigation permission.
+It can start the fixed bundled `whyfi-engine --stream-json` sidecar or cancel
+the matching active run. Progress uses a Tauri IPC channel. The WebView has no
+generic shell, filesystem, URL-opening, or broad core permissions. The Rust
+shell plugin supplies the packaged sidecar path without granting shell commands
+to the frontend.
+
+The desktop does not upload diagnostic reports or send application telemetry.
+The engine still makes the DNS and ICMP probes needed for diagnosis. Those
+destinations and the configured DNS service can observe their respective
+queries. Technical details can contain adapter names, addresses, resolver
+information, and local errors. Keep that in mind when sharing results.
+These protections scope WebView access. The native application and its
+sidecar still run with the Windows user's privileges. Configuration tests and
+Cargo validation check policy and permission definitions. Windows runtime
+verification checks rendering, assets, and diagnosis IPC separately.
+
 ---
 
 ## Standalone Windows Packaging
