@@ -26,7 +26,7 @@ WHYFI currently includes:
 - Command-line interface
 - Connection-quality analysis
 - Development previews for failure scenarios
-- **46 automated pytest tests**
+- Automated pytest coverage and GitHub Actions CI
 
 The installed application runs independently without requiring Python, npm, Cargo, VS Code, or the source repository.
 
@@ -371,16 +371,10 @@ and public reachability evidence:
 
 ## Testing
 
-WHYFI currently has:
-
-```text
-46 passed
-```
-
 Run the suite with:
 
 ```powershell
-pytest -q
+python -m pytest -q
 ```
 
 Coverage includes:
@@ -402,6 +396,25 @@ Coverage includes:
 - Streaming progress
 
 All current diagnosis codes are covered by automated tests.
+
+### Continuous integration
+
+The [CI workflow](.github/workflows/ci.yml) runs on pull requests targeting
+`main`, pushes to `main`, and manual dispatch from the Actions tab.
+
+| Check | Runner | Verification |
+| --- | --- | --- |
+| Python | Windows, Python 3.12 | Installs WHYFI and pytest, checks Python syntax, and runs the full suite. Windows probes are covered by deterministic mocks and fixtures. |
+| Frontend | Ubuntu, Node 22 | Installs from the npm lockfile, type-checks the Vite config, and runs the application TypeScript and Vite build. |
+| Rust / Tauri | Windows, stable Rust | Runs rustfmt in check mode and type-checks all Cargo targets with the tracked lockfile. A step-local Tauri override clears `externalBin` so this check can run on a clean checkout. |
+
+CI caches dependency downloads. Every run still installs or resolves dependencies
+and runs the checks. The workflow uses read-only repository permissions and
+cancels superseded runs on the same ref.
+
+The Rust check uses the development configuration and runs without a packaged
+sidecar. Live Windows diagnostics, sidecar execution, installer builds, and
+installed-app behavior remain separate verification steps.
 
 ---
 
@@ -502,7 +515,7 @@ The Tauri build automatically rebuilds the Python sidecar before compiling and p
 - [x] Automated production build
 - [ ] Broader Windows compatibility testing
 - [ ] Privacy sanitization layer
-- [ ] CI pipeline
+- [x] CI pipeline
 - [ ] GitHub release
 - [ ] Product screenshots
 - [ ] Demo video
