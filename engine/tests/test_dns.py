@@ -13,9 +13,10 @@ from whyfi import __main__ as cli
 from whyfi.diagnosis.engine import diagnose_baseline
 from whyfi.diagnostics.common import dns as diagnostic
 from whyfi.diagnostics.windows import baseline
+from whyfi.diagnostics.windows import dns as windows_dns
 from whyfi.models.diagnostic import BaselineDiagnosticResult
 from whyfi.models.diagnosis import DiagnosisCode
-from whyfi.models.dns import DNSQueryResult
+from whyfi.models.dns import DNSQueryResult, SystemDNSQueryResult
 from whyfi.models.local_config import LocalConfigResult
 from whyfi.models.network import PrimaryConnection
 from whyfi.models.probes import InternetReachabilityResult, PingResult
@@ -90,6 +91,7 @@ def test_partial_dns_collection_reaches_stream_without_masking_gateway_evidence(
     gateway = "192.0.2.1"
     first, second = "192.0.2.53", "192.0.2.54"
     mock_dns(monkeypatch, [first, second], {first: None, second: True})
+    monkeypatch.setattr(baseline, "check_dns", diagnostic.check_dns)
     monkeypatch.setattr(
         baseline, "get_primary_connection",
         lambda: PrimaryConnection("LAN", "ethernet", 7, "192.0.2.2", gateway, True),
@@ -172,7 +174,9 @@ def test_windows_dns_configuration_prefers_primary_and_scopes_ipv6(monkeypatch):
     monkeypatch.setattr(diagnostic.sys, "platform", "win32")
     monkeypatch.setattr(
         diagnostic.subprocess, "run",
-        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 0, json.dumps(rows), ""),
+        lambda cmd, **kwargs: subprocess.CompletedProcess(
+            cmd, 0, json.dumps({"interfaces": [dict(row, alias="Test") for row in rows]}), ""
+        ),
     )
 
     assert diagnostic.get_system_dns_servers(7) == [
@@ -205,12 +209,14 @@ def test_incomplete_windows_enumeration_cannot_confirm_empty_dns(
     assert result.error
 
 
-def test_complete_empty_windows_inventory_for_primary_confirms_no_configured_dns(monkeypatch):
-    row = {"index": 7, "family": 2, "metric": 10, "servers": []}
+def test_complete_empty_legacy_inventory_for_primary_confirms_no_configured_dns(monkeypatch):
+    row = {"index": 7, "alias": "LAN", "family": 2, "metric": 10, "servers": []}
     monkeypatch.setattr(diagnostic.sys, "platform", "win32")
     monkeypatch.setattr(
         diagnostic.subprocess, "run",
-        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 0, json.dumps([row]), ""),
+        lambda cmd, **kwargs: subprocess.CompletedProcess(
+            cmd, 0, json.dumps({"interfaces": [row]}), ""
+        ),
     )
 
     result = diagnostic.check_dns(primary_interface_index=7)
@@ -249,3 +255,184 @@ def test_dns_lookup_distinguishes_failed_from_unavailable(monkeypatch, error, ex
     assert result.error
     assert result.addresses == []
     assert result.latency_ms is None
+
+
+def windows_fixture(monkeypatch, extra_rows=(), extra_routes=(), policy=False, client=True):
+    rows = [{"index": 20, "alias": "Wi-Fi", "family": 2, "metric": 25,
+             "servers": ["192.168.50.1"]}, *extra_rows]
+    routes = [{"index": 20, "prefix": "192.168.50.0/24"}, *extra_routes]
+    monkeypatch.setattr(diagnostic, "_windows_json", lambda script: {
+        "interfaces": rows, "routes": routes, "policy": policy,
+    })
+    monkeypatch.setattr(windows_dns, "query_windows_dns_client", lambda:
+                        SystemDNSQueryResult("example.com.", client))
+    calls = []
+
+    def resolve(*, hostname, resolver_address):
+        calls.append(resolver_address)
+        return DNSQueryResult(hostname, resolver_address, True, 43.28)
+
+    monkeypatch.setattr(diagnostic, "query_dns", resolve)
+    return calls
+
+
+def dns_diagnosis(dns, gateway=True, internet=True):
+    return diagnose_baseline(BaselineDiagnosticResult(
+        connection=PrimaryConnection("Wi-Fi", "wifi", 20, "192.168.50.211", "192.168.50.1", True),
+        gateway=PingResult("192.168.50.1", gateway, 4, 4 if gateway else 0,
+                           0.0 if gateway else 100.0),
+        internet=InternetReachabilityResult(internet, 2, 2 if internet else 0),
+        local_config=LocalConfigResult(True),
+        dns=dns,
+        completed=True,
+    ))
+
+
+@pytest.mark.parametrize("mode", ["--json", "--stream-json"])
+def test_real_world_virtual_ipv6_entries_stay_in_details(monkeypatch, capsys, mode):
+    triplet = [f"fec0:0:0:ffff::{i}" for i in (1, 2, 3)]
+    rows = [
+        {"index": index, "alias": alias, "family": 23, "metric": 30, "servers": triplet}
+        for index, alias in [
+            (1, "Loopback"), (5, "VMware VMnet1"), (12, "VMware VMnet8"),
+            (17, "VMware VMnet4"), (78, "WSL"),
+        ]
+    ]
+    calls = windows_fixture(monkeypatch, rows, [
+        {"index": 1, "prefix": "::1/128"}, {"index": 5, "prefix": "fe80::/64"},
+        {"index": 12, "prefix": "fe80::/64"}, {"index": 17, "prefix": "fe80::/64"},
+        {"index": 78, "prefix": "fe80::/64"},
+    ])
+    monkeypatch.setattr(baseline, "get_primary_connection", lambda: PrimaryConnection(
+        "Wi-Fi", "wifi", 20, "192.168.50.211", "192.168.50.1", True,
+    ))
+    monkeypatch.setattr(baseline, "check_local_config", lambda: LocalConfigResult(True))
+    monkeypatch.setattr(baseline, "get_wifi_connection", lambda *args, **kwargs: None)
+    monkeypatch.setattr(baseline, "ping_host", lambda target: PingResult(target, True, 4, 4, 0.0))
+    monkeypatch.setattr(baseline, "check_internet_reachability",
+                        lambda: InternetReachabilityResult(True, 2, 2))
+    monkeypatch.setattr(sys, "argv", ["whyfi", mode])
+    cli.main()
+    output = capsys.readouterr().out
+    event = json.loads(output if mode == "--json" else output.splitlines()[-1])
+    assert event["diagnosis"]["code"] == "healthy"
+    details = event["details"]["dns"]
+    assert event["details"]["completed"]
+    assert calls == ["192.168.50.1"]
+    assert details["default_resolver"] == "192.168.50.1"
+    assert details["system_query"]["success"] is True
+    other = [item for item in details["resolver_evidence"] if not item["primary"]]
+    assert {item["interface_index"] for item in other} == {1, 5, 12, 17, 78}
+    assert len(other) == 15
+    assert all(item["provenance"] == "unknown" and not item["route_on_interface"] for item in other)
+
+
+@pytest.mark.parametrize("direct_status", [False, None])
+def test_primary_ipv6_and_secondary_success_preserve_incomplete_evidence(monkeypatch, direct_status):
+    row = {"index": 20, "alias": "Wi-Fi", "family": 23, "metric": 25,
+           "servers": ["fe80::53", "fec0:0:0:ffff::1"]}
+    windows_fixture(monkeypatch, [row], [
+        {"index": 20, "prefix": "fe80::/64"}, {"index": 5, "prefix": "fe80::/64"},
+        {"index": 20, "prefix": "fec0:0:0:ffff::/64"},
+    ])
+    monkeypatch.setattr(diagnostic, "query_dns", lambda hostname, resolver_address: DNSQueryResult(
+        hostname, resolver_address, True if resolver_address == "fe80::53%20" else direct_status,
+    ))
+    result = windows_dns.check_dns(primary_interface_index=20)
+    assert result.attribution_error is None
+    assert result.default_query.success is direct_status
+    assert [query.success for query in result.configured_queries] == [direct_status, True, direct_status]
+    assert [item.scope for item in result.resolver_evidence] == [None, "20", None]
+    assert dns_diagnosis(result).code is DiagnosisCode.UNKNOWN
+
+
+@pytest.mark.parametrize("alias", ["VMware VMnet1", "WSL", "VPN"])
+def test_isolated_off_interface_route_does_not_block_healthy_dns(monkeypatch, alias):
+    row = {"index": 5, "alias": alias, "family": 2, "metric": 30,
+           "servers": ["192.168.180.53"]}
+    calls = windows_fixture(monkeypatch, [row], [
+        {"index": 5, "prefix": "192.168.180.0/24"},
+    ])
+
+    result = windows_dns.check_dns(primary_interface_index=20)
+    assert result.attribution_error is None
+    assert result.system_query.success is True
+    assert calls == ["192.168.50.1"]
+    assert [query.resolver for query in result.configured_queries] == calls
+    other, = [item for item in result.resolver_evidence if not item.primary]
+    assert (other.interface_index, other.interface_alias) == (5, alias)
+    assert (other.resolver, other.route_on_interface) == ("192.168.180.53", True)
+    assert dns_diagnosis(result).code is DiagnosisCode.HEALTHY
+
+
+@pytest.mark.parametrize("case", [
+    "vpn", "policy", "policy_unknown", "partial", "routes_missing",
+    "client_unavailable", "conflict", "missing_primary",
+])
+def test_uncertain_dns_does_not_hide_independent_failures(monkeypatch, case):
+    row = {"index": 3, "alias": "VPN", "family": 2, "metric": 5, "servers": ["10.1.0.53"]}
+    windows_fixture(
+        monkeypatch,
+        [dict(row, servers=None)] if case == "partial" else [row] if case == "vpn" else [],
+        [
+            {"index": 3, "prefix": "10.1.0.0/24"},
+            {"index": 3, "prefix": "192.168.50.1/32"},
+        ] if case == "vpn" else [{"index": 20}] if case == "routes_missing" else [],
+        policy=None if case == "policy_unknown" else case == "policy",
+        client=None if case == "client_unavailable" else case != "conflict",
+    )
+    result = windows_dns.check_dns(primary_interface_index=99 if case == "missing_primary" else 20)
+    diagnosis = dns_diagnosis(result)
+    assert diagnosis.code is DiagnosisCode.UNKNOWN and diagnosis.confidence is None
+    assert dns_diagnosis(result, gateway=False, internet=False).code is DiagnosisCode.GATEWAY_ISSUE
+    assert dns_diagnosis(result, internet=False).code is DiagnosisCode.INTERNET_ISSUE
+
+
+@pytest.mark.parametrize(("client", "expected"), [(True, DiagnosisCode.UNKNOWN), (False, DiagnosisCode.DNS_ISSUE)])
+def test_dns_client_success_alone_does_not_prove_live_reachability(monkeypatch, client, expected):
+    windows_fixture(monkeypatch, client=client)
+    monkeypatch.setattr(diagnostic, "query_dns", lambda hostname, resolver_address:
+                        DNSQueryResult(hostname, resolver_address, False, error="SERVFAIL"))
+    result = windows_dns.check_dns(primary_interface_index=20)
+    assert result.system_query.success is client
+    assert result.likely_dns_issue is (not client)
+    assert dns_diagnosis(result).code is expected
+
+
+def test_more_specific_off_interface_route_blocks_primary_direct_probe(monkeypatch):
+    calls = windows_fixture(monkeypatch, extra_routes=[
+        {"index": 3, "prefix": "192.168.50.1/32"},
+    ])
+    result = windows_dns.check_dns(primary_interface_index=20)
+    assert calls == []
+    assert result.default_query.success is None
+    assert "ambiguous Windows route" in result.attribution_error
+    assert dns_diagnosis(result).code is DiagnosisCode.UNKNOWN
+
+
+@pytest.mark.parametrize(("payload", "success"), [
+    ({"addresses": ["192.0.2.1"], "code": None}, True),
+    ({"addresses": [], "code": "DNS_ERROR_RCODE_NAME_ERROR"}, False),
+    ({"addresses": [], "code": "AccessDenied"}, None),
+    ({"addresses": ["not an IP"], "code": None}, None),
+    ({"addresses": ["192.0.2.1"]}, None),
+])
+def test_windows_client_lookup_is_bounded_and_has_no_explicit_upstream(monkeypatch, payload, success):
+    def run(script, *, timeout):
+        assert timeout == 8
+        assert "-DnsOnly -NoHostsFile" in script
+        assert "-Server " not in script
+        return payload
+
+    monkeypatch.setattr(diagnostic, "_windows_json", run)
+    assert windows_dns.query_windows_dns_client().success is success
+
+
+def test_windows_client_subprocess_timeout_is_unavailable(monkeypatch):
+    def timeout(script, *, timeout):
+        raise subprocess.TimeoutExpired("powershell", timeout)
+
+    monkeypatch.setattr(diagnostic, "_windows_json", timeout)
+    result = windows_dns.query_windows_dns_client()
+    assert result.success is None
+    assert "collection deadline" in result.error

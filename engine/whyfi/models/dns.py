@@ -16,6 +16,26 @@ class DNSQueryResult:
 
 
 @dataclass(slots=True)
+class SystemDNSQueryResult:
+    hostname: str
+    success: bool | None
+    addresses: list[str] = field(default_factory=list)
+    error: str | None = None
+
+
+@dataclass(slots=True)
+class WindowsDNSResolverEvidence:
+    interface_index: int
+    interface_alias: str
+    address_family: str
+    resolver: str
+    scope: str | None
+    primary: bool
+    route_on_interface: bool | None
+    provenance: str = "unknown"
+
+
+@dataclass(slots=True)
 class DNSDiagnosticResult:
     """Represents WHYFI's comparison of DNS resolvers."""
 
@@ -26,9 +46,17 @@ class DNSDiagnosticResult:
     likely_dns_issue: bool = False
     error: str | None = None
     configured_queries: list[DNSQueryResult] = field(default_factory=list)
+    system_query: SystemDNSQueryResult | None = None
+    resolver_evidence: list[WindowsDNSResolverEvidence] = field(default_factory=list)
+    attribution_error: str | None = None
 
     @property
     def measurements_complete(self) -> bool:
         """Whether configured resolver evidence is available for assessment."""
         queries = self.configured_queries or ([self.default_query] if self.default_query else [])
-        return self.healthy is not None and all(query.success is not None for query in queries)
+        return (
+            self.attribution_error is None
+            and (self.system_query is None or self.system_query.success is not None)
+            and self.healthy is not None
+            and all(query.success is not None for query in queries)
+        )

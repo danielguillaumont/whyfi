@@ -366,31 +366,37 @@ the same `diagnosis` and `details`. A fatal streaming failure emits
   It requires a recognized interface count and complete records, or a
   recognized message that Windows has no wireless interface. Other formats
   are reported as unavailable.
-- `details.dns.configured_queries` contains an ordered result for each
-  distinct resolver on connected Windows interfaces, starting with the
-  primary interface when available. Reported IPv6 addresses are preserved,
-  including scope identifiers. DNS inventory that omits a connected interface's
-  configuration is unavailable.
-  `default_resolver` and `default_query`
-  still describe the first entry, even if a later resolver succeeds.
-  A query's `success` is `null` if it could not be measured. Overall
-  `healthy` is `true` if any configured resolver resolves the test name,
-  `false` if all measured lookups fail or no resolver is configured, and
-  `null` if none succeeded and some measurements are unavailable.
-  `likely_dns_issue` reflects a failed configured test, including a known
-  empty configuration.
-
-A successful lookup establishes that the test name resolves through at least
-one configured resolver. If other configured lookups failed or were unavailable,
-the overall diagnosis is `unknown` with `confidence: null` unless independent
-network evidence supports another diagnosis. Unavailable configured lookups
-also appear in `details.collection_errors`.
-
-DNS results describe direct lookups for the test name. They do not measure
-Windows per-domain resolver selection, private-zone reachability, or encrypted
-DNS policy. Public comparisons run only for the built-in `example.com` test
-when all configured lookups fail. Their results stay in `alternate_queries`
-and do not determine configured DNS health.
+- On the Windows desktop baseline, `details.dns.configured_queries` contains
+  ordered direct query results for distinct resolvers listed on the primary
+  interface. `default_resolver` and `default_query` still describe the first
+  entry. `healthy` describes the direct test. It is `true` when any queried
+  resolver answers, `false` when all measured lookups fail, and `null` when
+  resolution could not be assessed. `likely_dns_issue` requires both paths
+  to fail with complete attribution.
+- `details.dns.resolver_evidence` preserves resolver records for connected
+  interfaces, including `interface_index`, `interface_alias`, `address_family`,
+  `resolver`, IPv6 `scope`, `primary`, `route_on_interface`, and
+  `provenance`. A matching route is a routing observation. The Windows address
+  inventory does not identify how servers were provisioned, so provenance is
+  `unknown`. Off-interface addresses, including historical IPv6 entries, stay
+  visible in technical details without direct queries. An isolated route to
+  an off-interface resolver does not affect the primary DNS assessment.
+  These fields are
+  additive and existing consumers can continue reading the first resolver.
+- `details.dns.system_query` records a separate Windows DNS-client A lookup of
+  `example.com.` with an eight-second collection limit. `success` is `true`,
+  `false`, or `null` for unavailable evidence. An answer may come from the
+  Windows cache or use Windows resolver routing and policy. It does not
+  establish live upstream reachability, a particular upstream server, private
+  DNS behavior, or encrypted DNS behavior.
+- `details.dns.attribution_error` describes missing or ambiguous inventory,
+  routes, or namespace policy. Mixed direct results, uncertain attribution,
+  and missing or conflicting system results make the DNS assessment
+  inconclusive unless independent network evidence identifies a separate
+  problem. Unavailable evidence also appears in
+  `details.collection_errors`. The Windows baseline does not send comparison
+  queries to public DNS resolvers. The legacy `alternate_queries` field remains
+  present.
 
 For example, this excerpt from a streaming result shows conflicting route
 and public reachability evidence:

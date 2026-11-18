@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { InvestigationFlow } from "./investigation";
+import { resolverEvidenceRows, systemDnsSummary, type DnsResolverEvidence, type SystemDnsQuery } from "./dnsEvidence";
 import "./App.css";
 
 type AppState = "ready" | "diagnosing" | "result" | "error" | "cancelled" | "timed_out";
@@ -55,6 +56,9 @@ type DnsDetails = {
   default_query?: DnsQueryDetails | null;
   likely_dns_issue?: boolean | null;
   configured_queries?: DnsQueryDetails[];
+  resolver_evidence?: DnsResolverEvidence[];
+  system_query?: SystemDnsQuery | null;
+  attribution_error?: string | null;
   error?: string | null;
 };
 
@@ -756,7 +760,7 @@ function App() {
 
                       <div className="evidence-list">
                         <DetailRow
-                          label="Test name resolved"
+                          label="Direct resolver test resolved"
                           value={yesNo(details.dns.healthy) ?? "Unavailable"}
                         />
                         <DetailRow
@@ -771,6 +775,10 @@ function App() {
                           )}
                         />
                         <DetailRow label="Details" value={details.dns.error} />
+                        {details.dns.system_query && (
+                          <DetailRow label="Windows DNS client" value={systemDnsSummary(details.dns.system_query)} />
+                        )}
+                        <DetailRow label="Attribution" value={details.dns.attribution_error} />
                         {detailRecords(details.dns.configured_queries).map((query, index) => (
                           <DetailRow
                             key={typeof query.resolver === "string" ? query.resolver : index}
@@ -784,6 +792,9 @@ function App() {
                                   ].filter(Boolean).join(" — ")
                             }
                           />
+                        ))}
+                        {resolverEvidenceRows(details.dns.resolver_evidence).map((row, index) => (
+                          <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} />
                         ))}
                       </div>
                     </article>

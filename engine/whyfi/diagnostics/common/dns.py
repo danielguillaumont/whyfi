@@ -28,6 +28,36 @@ def get_system_dns_servers(primary_interface_index: int | None = None) -> list[s
         resolver = dns.resolver.Resolver(configure=True)
         return [str(server) for server in resolver.nameservers]
 
+    inventory = get_windows_dns_inventory()
+    rows = inventory["interfaces"]
+    if primary_interface_index is not None and not any(
+        row["index"] == primary_interface_index for row in rows
+    ):
+        raise ValueError("Windows DNS inventory did not include the primary interface.")
+    if any(row["servers"] is None for row in rows):
+        raise ValueError("Windows returned an incomplete DNS interface inventory.")
+    return [
+        scoped_resolver(server, row["index"])
+        for row in sorted(rows, key=lambda row: (
+            row["index"] != primary_interface_index, row["metric"],
+            row["index"], row["family"],
+        ))
+        for server in row["servers"]
+    ]
+
+
+def _windows_json(script: str, timeout: int = 10) -> object:
+    completed = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+        capture_output=True, text=True, encoding="utf-8", timeout=timeout, check=False,
+    )
+    if completed.returncode != 0 or completed.stderr.strip():
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise RuntimeError(f"Windows DNS command failed (exit {completed.returncode}): {detail[:500]}")
+    return json.loads(completed.stdout)
+
+
+def get_windows_dns_inventory() -> dict:
     script = """
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -40,71 +70,60 @@ Get-DnsClientServerAddress | ForEach-Object {
 }
 $rows = @($interfaces | Where-Object ConnectionState -eq 'Connected' | ForEach-Object {
     $key = "$($_.InterfaceIndex):$([int]$_.AddressFamily)"
-    if (-not $dnsByInterface.ContainsKey($key) -or
-        $null -eq $dnsByInterface[$key].PSObject.Properties['ServerAddresses']) {
-        throw "Windows returned no DNS configuration record for interface $key."
+    $row = $dnsByInterface[$key]
+    $addresses = $null
+    if ($null -ne $row -and $row.InterfaceAlias -eq $_.InterfaceAlias -and
+        $null -ne $row.PSObject.Properties['ServerAddresses']) {
+        $addresses = @()
+        if ($null -ne $row.ServerAddresses) { $addresses = @($row.ServerAddresses) }
     }
-    $addresses = $dnsByInterface[$key].ServerAddresses
-    if ($null -eq $addresses) { $addresses = @() }
     [PSCustomObject]@{
         index = $_.InterfaceIndex
+        alias = $_.InterfaceAlias
         family = [int]$_.AddressFamily
         metric = $_.InterfaceMetric
-        servers = @($addresses)
+        servers = $addresses
     }
 })
-ConvertTo-Json -InputObject $rows -Compress
+$routes = $null
+try {
+    $routes = @(Get-NetRoute -PolicyStore ActiveStore |
+        ForEach-Object { @{ index = $_.InterfaceIndex; prefix = $_.DestinationPrefix } })
+} catch {}
+$policy = $null
+try {
+    $policy = @(Get-DnsClientNrptPolicy -Effective).Count -gt 0
+} catch {}
+ConvertTo-Json -InputObject @{ interfaces = $rows; routes = $routes; policy = $policy } -Depth 5 -Compress
 """
-    try:
-        completed = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=10,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("Windows DNS configuration lookup timed out.") from exc
-
-    if completed.returncode != 0 or completed.stderr.strip():
-        detail = completed.stderr.strip() or completed.stdout.strip()
-        raise RuntimeError(
-            f"Windows DNS configuration lookup failed (exit {completed.returncode}): {detail}"
-        )
-
-    rows = json.loads(completed.stdout)
-    if not isinstance(rows, list) or any(
+    result = _windows_json(script)
+    if not isinstance(result, dict) or not isinstance(result.get("interfaces"), list):
+        raise ValueError("Unrecognized Windows DNS inventory.")
+    if not result["interfaces"] or any(
         not isinstance(row, dict)
         or any(type(row.get(key)) is not int for key in ("index", "family", "metric"))
-        or not isinstance(row.get("servers"), list)
-        or any(not isinstance(server, str) for server in row["servers"])
-        for row in rows
+        or row["family"] not in (2, 23)
+        or not isinstance(row.get("alias"), str)
+        or not row["alias"].strip()
+        or "servers" not in row
+        or (row["servers"] is not None and (
+            not isinstance(row["servers"], list)
+            or any(not isinstance(server, str) for server in row["servers"])
+        ))
+        for row in result["interfaces"]
     ):
-        raise ValueError("Unrecognized Windows DNS configuration output.")
-    if primary_interface_index is not None and not any(
-        row["index"] == primary_interface_index for row in rows
-    ):
-        raise ValueError("Windows DNS inventory did not include the primary interface.")
+        raise ValueError("Unrecognized Windows DNS interface inventory.")
+    return result
 
-    servers = []
-    for row in sorted(rows, key=lambda row: (
-        row["index"] != primary_interface_index, row["metric"], row["index"], row["family"]
-    )):
-        for server in row["servers"]:
-            try:
-                address = ipaddress.ip_address(server)
-            except ValueError:
-                servers.append(server)
-                continue
-            if (
-                isinstance(address, ipaddress.IPv6Address)
-                and address.is_link_local
-                and not address.scope_id
-            ):
-                server = f"{address}%{row['index']}"
-            servers.append(server)
-    return servers
+
+def scoped_resolver(server: str, index: int) -> str:
+    try:
+        address = ipaddress.ip_address(server)
+    except ValueError:
+        return server
+    if isinstance(address, ipaddress.IPv6Address) and address.is_link_local and not address.scope_id:
+        return f"{address}%{index}"
+    return server
 
 
 def query_dns(
@@ -208,11 +227,24 @@ def check_dns(
             error=f"Could not discover configured DNS resolvers: {exc}",
         )
 
+    return check_resolvers(hostname, system_resolvers)
+
+
+def check_resolvers(
+    hostname: str,
+    system_resolvers: list[str],
+    *,
+    compare_public: bool = True,
+    unavailable: dict[str, str] | None = None,
+) -> DNSDiagnosticResult:
+    """Measure direct queries using the supplied resolver context."""
     resolver_addresses = {}
     for address in system_resolvers:
         resolver_addresses.setdefault(_resolver_key(address), address)
     configured_queries = [
-        query_dns(hostname=hostname, resolver_address=address)
+        DNSQueryResult(hostname, address, None, error=unavailable[address])
+        if unavailable and address in unavailable
+        else query_dns(hostname=hostname, resolver_address=address)
         for address in resolver_addresses.values()
     ]
     default_query = configured_queries[0] if configured_queries else None
@@ -230,7 +262,10 @@ def check_dns(
         )
 
     alternate_queries = []
-    if configured_queries and healthy is False and hostname.casefold().rstrip(".") == _PUBLIC_TEST_HOST:
+    if (
+        compare_public and configured_queries and healthy is False
+        and hostname.casefold().rstrip(".") == _PUBLIC_TEST_HOST
+    ):
         alternate_queries = [
             query_dns(hostname=hostname, resolver_address=resolver)
             for resolver in _ALTERNATE_RESOLVERS
