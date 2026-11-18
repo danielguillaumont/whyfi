@@ -11,7 +11,7 @@ type Diagnosis = {
   confidence: number | null;
   summary: string;
   evidence: string[];
-  recommendation: string;
+  recommendation: string | null;
 };
 
 type PingDetails = {
@@ -222,7 +222,10 @@ const DEV_PREVIEW_DIAGNOSES: Diagnosis[] = [
 ];
 
 function DetailRow({ label, value }: DetailRowProps) {
-  if (value === null || value === undefined || value === "") {
+  if (
+    !((typeof value === "string" && value.length > 0) ||
+      (typeof value === "number" && Number.isFinite(value)))
+  ) {
     return null;
   }
 
@@ -235,7 +238,7 @@ function DetailRow({ label, value }: DetailRowProps) {
 }
 
 function yesNo(value: boolean | null | undefined) {
-  if (value === null || value === undefined) {
+  if (typeof value !== "boolean") {
     return undefined;
   }
 
@@ -246,11 +249,23 @@ function metric(
   value: number | null | undefined,
   suffix: string
 ) {
-  if (value === null || value === undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return undefined;
   }
 
   return `${value} ${suffix}`;
+}
+
+function detailRecords<T extends object>(items: T[] | null | undefined): T[] {
+  return Array.isArray(items)
+    ? items.filter((item) => typeof item === "object" && item !== null && !Array.isArray(item))
+    : [];
+}
+
+function adapterList(items: string[] | null | undefined) {
+  return Array.isArray(items)
+    ? items.filter((item) => typeof item === "string").join(", ")
+    : undefined;
 }
 
 function App() {
@@ -674,20 +689,20 @@ function App() {
                         <DetailRow
                           label="Targets reachable"
                           value={
-                            details.internet.targets_reachable != null &&
-                            details.internet.targets_tested != null &&
+                            typeof details.internet.targets_reachable === "number" &&
+                            typeof details.internet.targets_tested === "number" &&
                             details.internet.targets_tested > 0
                               ? `${details.internet.targets_reachable}/${details.internet.targets_tested}`
                               : undefined
                           }
                         />
 
-                        {details.internet.probes?.map((probe) => (
+                        {detailRecords(details.internet.probes).map((probe, index) => (
                           <div
                             className="evidence-item"
-                            key={probe.target ?? "probe"}
+                            key={typeof probe.target === "string" ? probe.target : index}
                           >
-                            <strong>{probe.target ?? "Target"}:</strong>
+                            <strong>{typeof probe.target === "string" ? probe.target : "Target"}:</strong>
 
                             <span>
                               {metric(
@@ -727,16 +742,16 @@ function App() {
                           )}
                         />
                         <DetailRow label="Details" value={details.dns.error} />
-                        {details.dns.configured_queries?.map((query) => (
+                        {detailRecords(details.dns.configured_queries).map((query, index) => (
                           <DetailRow
-                            key={query.resolver}
-                            label={query.resolver ?? "Configured resolver"}
+                            key={typeof query.resolver === "string" ? query.resolver : index}
+                            label={typeof query.resolver === "string" ? query.resolver : "Configured resolver"}
                             value={
-                              query.success
+                              query.success === true
                                 ? metric(query.latency_ms, "ms") ?? "Resolved"
                                 : [
                                     query.success === false ? "Lookup failed" : "Unavailable",
-                                    query.error,
+                                    typeof query.error === "string" ? query.error : undefined,
                                   ].filter(Boolean).join(" — ")
                             }
                           />
@@ -812,19 +827,11 @@ function App() {
                         />
                         <DetailRow
                           label="Active adapters"
-                          value={
-                            details.local_config.active_adapters?.join(
-                              ", "
-                            )
-                          }
+                          value={adapterList(details.local_config.active_adapters)}
                         />
                         <DetailRow
                           label="Usable IPv4 adapters"
-                          value={
-                            details.local_config.usable_ipv4_adapters?.join(
-                              ", "
-                            )
-                          }
+                          value={adapterList(details.local_config.usable_ipv4_adapters)}
                         />
                       </div>
                     </article>

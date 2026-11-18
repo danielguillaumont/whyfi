@@ -1,3 +1,6 @@
+mod sidecar_protocol;
+
+use sidecar_protocol::{SidecarProtocol, StderrCapture};
 use tauri::Emitter;
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
@@ -7,78 +10,51 @@ async fn run_diagnosis_sidecar(app: tauri::AppHandle) -> Result<String, String> 
         .shell()
         .sidecar("whyfi-engine")
         .map_err(|error| format!("Could not locate the WHYFI diagnostic engine: {error}"))?
-        .args(["--stream-json"]);
+        .args(["--stream-json"])
+        .set_raw_out(true);
 
     let (mut receiver, _child) = sidecar_command
         .spawn()
         .map_err(|error| format!("Could not start the WHYFI diagnostic engine: {error}"))?;
 
-    let mut final_event: Option<String> = None;
-    let mut stderr_lines: Vec<String> = Vec::new();
-    let mut exit_code: Option<i32> = None;
-    let mut terminated = false;
+    let mut protocol = SidecarProtocol::default();
+    let mut protocol_error = None;
+    let mut stderr = StderrCapture::default();
+    let mut termination = None;
 
     while let Some(event) = receiver.recv().await {
         match event {
-            CommandEvent::Stdout(bytes) => {
-                let line = String::from_utf8_lossy(&bytes).trim().to_string();
-
-                if line.is_empty() {
-                    continue;
-                }
-
-                app.emit("whyfi-diagnostic-event", line.clone())
-                    .map_err(|error| {
-                        format!("Could not send diagnostic progress to the interface: {error}")
-                    })?;
-
-                if line.contains("\"type\":\"result\"") {
-                    final_event = Some(line);
-                }
+            CommandEvent::Stdout(bytes) if protocol_error.is_none() => {
+                // Continue draining both pipes on a protocol error until the sidecar exits.
+                protocol_error = protocol
+                    .push(&bytes, |line| {
+                        app.emit("whyfi-diagnostic-event", line).map_err(|error| {
+                            format!("Could not send diagnostic progress to the interface: {error}")
+                        })
+                    })
+                    .err();
             }
-
-            CommandEvent::Stderr(bytes) => {
-                let line = String::from_utf8_lossy(&bytes).trim().to_string();
-
-                if !line.is_empty() {
-                    stderr_lines.push(line);
-                }
-            }
+            CommandEvent::Stderr(bytes) => stderr.push(&bytes),
 
             CommandEvent::Error(error) => {
                 return Err(format!("WHYFI diagnostic engine process error: {error}"));
             }
 
             CommandEvent::Terminated(payload) => {
-                terminated = true;
-                exit_code = payload.code;
+                termination = Some(payload.code);
             }
 
             _ => {}
         }
     }
 
-    if !terminated {
-        return Err("WHYFI diagnostic engine ended without a termination status.".to_string());
+    if let Some(error) = protocol_error {
+        return Err(error);
     }
 
-    if exit_code != Some(0) {
-        let stderr = stderr_lines.join("\n");
-
-        if stderr.is_empty() {
-            return Err(format!(
-                "WHYFI diagnostic engine exited with code {:?}.",
-                exit_code
-            ));
-        }
-
-        return Err(format!("WHYFI diagnostic engine failed: {stderr}"));
-    }
-
-    let result = final_event
-        .ok_or_else(|| "WHYFI diagnostic engine did not return a final result.".to_string())?;
-
-    Ok(result)
+    let exit_code = termination
+        .ok_or_else(|| "WHYFI diagnostic engine ended without a termination status.".to_string())?;
+    protocol.finish(exit_code, &stderr)
 }
 
 #[tauri::command]

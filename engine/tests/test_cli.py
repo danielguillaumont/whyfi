@@ -3,6 +3,8 @@
 import json
 import sys
 
+import pytest
+
 from whyfi import __main__ as cli
 from whyfi.models.diagnosis import DiagnosisCode, DiagnosisResult
 
@@ -272,3 +274,41 @@ def test_stream_json_outputs_progress_and_result(
     assert events[2]["diagnosis"]["code"] == "healthy"
     assert events[2]["diagnosis"]["confidence"] == 96
     assert events[2]["details"]["completed"] is True
+
+
+def test_stream_json_reports_fatal_failure_as_one_terminal_error(monkeypatch, capsys):
+    def fail(progress):
+        progress("Checking network configuration...")
+        raise RuntimeError("fixture failure")
+
+    monkeypatch.setattr(cli, "run_baseline_diagnostics", fail)
+    monkeypatch.setattr(sys, "argv", ["whyfi", "--stream-json"])
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+
+    assert exc.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out.endswith("\n")
+    assert [json.loads(line) for line in captured.out.splitlines()] == [
+        {"type": "progress", "message": "Checking network configuration..."},
+        {"type": "error", "message": "WHYFI could not complete the diagnosis: fixture failure"},
+    ]
+
+
+def test_stream_json_does_not_emit_nonstandard_numeric_values(monkeypatch, capsys):
+    monkeypatch.setattr(
+        cli,
+        "_run_streaming_baseline",
+        lambda: cli._emit_stream_event("result", details={"invalid": float("nan")}),
+    )
+    monkeypatch.setattr(sys, "argv", ["whyfi", "--stream-json"])
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+
+    assert exc.value.code == 1
+    event, = map(json.loads, capsys.readouterr().out.splitlines())
+    assert event["type"] == "error"
+    assert event["message"].startswith("WHYFI could not complete the diagnosis:")
