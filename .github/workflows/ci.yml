@@ -57,6 +57,8 @@ jobs:
         run: npm ci
       - name: Type-check Vite configuration
         run: npm exec --no -- tsc -p tsconfig.node.json --noEmit --composite false
+      - name: Test investigation state transitions
+        run: node --experimental-strip-types --test tests/investigation.test.mjs
       - name: Type-check and build the frontend
         run: npm run build
 

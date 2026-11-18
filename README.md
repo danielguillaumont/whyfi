@@ -222,8 +222,7 @@ progress events followed by exactly one terminal event. Blank lines are ignored:
 Rust buffers raw stdout bytes until it has a complete line. It validates the
 event type, required diagnosis fields, and the technical fields rendered by
 React. Unavailable measurements may be null, and additional engine fields pass
-through. React receives the existing progress event payload and gets the
-validated result once, as the command response.
+through. The Python event format is shared by the CLI and desktop.
 
 Each stdout record may contain up to **1 MiB (1,048,576 bytes)** before the
 LF delimiter, including any preceding CR. This leaves room for a full diagnostic
@@ -233,13 +232,47 @@ was discarded.
 
 Malformed JSON, invalid UTF-8, unknown event types, an unfinished line, extra
 events after the terminal event, a missing result, or an unsuccessful process
-exit rejects the desktop command. An oversized record also rejects the command.
-The existing error view shows the failure and
-allows a retry. Stderr is diagnostic output outside the protocol and can provide
+exit produces a failed investigation. An oversized record also fails the
+investigation. Stderr is diagnostic output outside the protocol and can provide
 context for a failed exit when there is no structured error event.
-After detecting a protocol error, the bridge drains both output pipes with
-bounded retention and waits for the sidecar to exit. A hung sidecar can still
-keep the command pending until process lifecycle handling is added in R01D-B.
+
+### Investigation lifecycle
+
+The desktop uses `start_diagnosis` to reserve the single active investigation
+and receive its run ID and progress through a per-invocation Tauri channel. The
+command returns a terminal outcome with the same run ID. `cancel_diagnosis`
+accepts only that active ID. Cancellation accepted before the worker claims a
+terminal outcome wins over a late result. React ignores events from previous
+investigations and displays cancellation, timeout, and failure separately.
+
+Set `WHYFI_INVESTIGATION_TIMEOUT_SECONDS` in the desktop process environment
+before launch to override the **120-second** overall deadline. The accepted
+range is 5–600 whole seconds. This budget starts when Rust admits the run,
+includes sidecar startup, and reserves the final three seconds for cleanup.
+Once the work deadline expires, the worker requests termination even if the
+sidecar has produced no output.
+
+The bridge uses Tauri's packaged sidecar resolver and supervises the resolved
+command through its owned OS process handle. It polls direct-child exit
+independently of stdout and stderr. It reads available bytes without waiting
+for pipe EOF or leaving background pipe readers. On cancellation, timeout, or
+a protocol error it closes the read handles and requests direct-child
+termination on a blocking worker. A kill request alone does not release the
+run slot. If cleanup exceeds the deadline, the outcome returns while the
+worker keeps the slot reserved until it confirms exit. Cleanup errors are
+included when available and logged if they occur after the outcome.
+
+Windows descendants, including helpers launched by the packaged Python
+executable, can outlive the direct child. Inherited writer handles cannot
+delay exit confirmation or keep WHYFI's readers alive. The bridge does not
+terminate the process tree. If the OS never confirms direct-child exit,
+the app keeps new investigations blocked.
+
+CI tests the Rust lifecycle with synthetic process events and the React run
+guard with Node's test runner. For a packaged Windows smoke test, complete a
+normal investigation, cancel during progress and retry, exercise cancellation
+near completion, and run with a short deadline override. Check Task Manager
+for lingering child processes after cancellation or timeout.
 
 The deterministic network engine remains the source of truth.
 
