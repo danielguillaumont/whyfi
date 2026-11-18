@@ -43,8 +43,10 @@ def get_primary_connection() -> PrimaryConnection | None:
         None,
     )
 
-    if adapter is None:
-        return None
+    if adapter is None or not adapter.is_up:
+        raise RuntimeError(
+            f"Could not match the active route to an active adapter: {route.interface_alias}"
+        )
 
     return PrimaryConnection(
         adapter_name=adapter.name,

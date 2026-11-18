@@ -160,12 +160,12 @@ def test_healthy_connection() -> None:
 
 
 def test_no_connection() -> None:
-    """Missing primary connection should produce NO_CONNECTION."""
+    """A missing route and completed public probes with no replies support disconnection."""
 
     baseline = BaselineDiagnosticResult(
         connection=None,
         gateway=None,
-        internet=None,
+        internet=make_internet(reachable=False),
         dns=None,
         completed=False,
         error="No primary network connection was found.",

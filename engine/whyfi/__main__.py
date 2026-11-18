@@ -18,7 +18,8 @@ def _print_diagnosis(diagnosis: DiagnosisResult) -> None:
 
     print()
     print(diagnosis.title)
-    print(f"Confidence: {diagnosis.confidence}%")
+    if diagnosis.confidence is not None:
+        print(f"Confidence: {diagnosis.confidence}%")
     print()
     print(diagnosis.summary)
 

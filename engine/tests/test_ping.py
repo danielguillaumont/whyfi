@@ -1,9 +1,11 @@
 """Ping parsing and connection-quality tests for WHYFI."""
 
-from whyfi.diagnostics.windows.ping import (
-    _calculate_jitter,
-    _extract_latencies,
-)
+import subprocess
+
+import pytest
+
+from whyfi.diagnostics.windows import ping
+from whyfi.diagnostics.windows.ping import _calculate_jitter
 
 
 def test_calculate_jitter_from_stable_latencies() -> None:
@@ -38,21 +40,76 @@ def test_empty_latency_list_has_no_jitter_measurement() -> None:
     assert _calculate_jitter([]) is None
 
 
-def test_extract_windows_ping_latencies() -> None:
-    """Windows ping reply lines should produce latency measurements."""
+def test_windows_ping_collects_unlocalized_status_and_latency(monkeypatch) -> None:
+    output = '[{"status":0,"elapsed":0},{"status":11010},{"status":0,"elapsed":12}]'
 
-    output = """
-Reply from 1.1.1.1: bytes=32 time=18ms TTL=57
-Reply from 1.1.1.1: bytes=32 time=20ms TTL=57
-Reply from 1.1.1.1: bytes=32 time=17ms TTL=57
-"""
+    def run(command, **kwargs):
+        assert command[0] == "powershell.exe"
+        assert "System.Net.NetworkInformation.Ping" in command[-1]
+        return subprocess.CompletedProcess(command, 0, output, "")
 
-    assert _extract_latencies(output) == [18.0, 20.0, 17.0]
+    monkeypatch.setattr(ping.subprocess, "run", run)
+    result = ping.ping_host("192.0.2.1", count=3)
+
+    assert result.reachable is True
+    assert result.packets_received == 2
+    assert result.packet_loss_percent == 33.3
+    assert result.min_latency_ms == 0.5
+    assert result.average_latency_ms == 6.25
+    assert result.jitter_ms == 11.5
 
 
-def test_extract_less_than_one_millisecond_latency() -> None:
-    """Windows time<1ms replies should use WHYFI's 0.5 ms estimate."""
+def test_windows_ping_reports_genuine_no_reply(monkeypatch) -> None:
+    output = '[{"status":11010},{"status":11003}]'
+    monkeypatch.setattr(
+        ping.subprocess, "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, output, ""),
+    )
 
-    output = "Reply from 192.168.1.1: bytes=32 time<1ms TTL=64"
+    result = ping.ping_host("192.0.2.1", count=2)
 
-    assert _extract_latencies(output) == [0.5]
+    assert result.reachable is False
+    assert result.packets_sent == 2
+    assert result.packets_received == 0
+    assert result.packet_loss_percent == 100.0
+
+
+@pytest.mark.parametrize(("exit_code", "stdout", "stderr", "reason"), [
+    (1, "", "permission denied", "permission denied"),
+    (0, '[{"status":11010}]', "unexpected error", "unexpected error"),
+    (0, "Antwort: Zeit=12ms", "", "Invalid Windows ICMP output"),
+    (0, "[]", "", "Expected 1 ICMP samples"),
+    (0, '[{"status":11050}]', "", "Windows status 11050"),
+    (0, '[{"status":0,"elapsed":-1}]', "", "Invalid ICMP round-trip time"),
+])
+def test_windows_ping_failure_has_no_reachability_or_loss(
+    monkeypatch, exit_code, stdout, stderr, reason
+) -> None:
+    monkeypatch.setattr(
+        ping.subprocess, "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, exit_code, stdout, stderr),
+    )
+
+    result = ping.ping_host("192.0.2.1", count=1)
+
+    assert result.reachable is None
+    assert result.packets_sent is None
+    assert result.packets_received is None
+    assert result.packet_loss_percent is None
+    assert reason in result.error
+
+
+@pytest.mark.parametrize(("error", "reason"), [
+    (subprocess.TimeoutExpired("powershell.exe", 10), "timed out"),
+    (FileNotFoundError("missing executable"), "missing executable"),
+])
+def test_windows_ping_process_error_is_unavailable(monkeypatch, error, reason) -> None:
+    def run(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(ping.subprocess, "run", run)
+    result = ping.ping_host("192.0.2.1", count=1)
+
+    assert result.reachable is None
+    assert result.packet_loss_percent is None
+    assert reason in result.error

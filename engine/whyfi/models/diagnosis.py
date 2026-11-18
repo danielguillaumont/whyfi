@@ -24,7 +24,7 @@ class DiagnosisResult:
 
     code: DiagnosisCode
     title: str
-    confidence: int
+    confidence: int | None
     summary: str
     evidence: list[str] = field(default_factory=list)
     recommendation: str | None = None

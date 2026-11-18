@@ -21,6 +21,24 @@ def diagnose_baseline(
     dns = result.dns
     wifi = result.wifi
     local_config = result.local_config
+    route_failed = any(error.check == "route" for error in result.collection_errors)
+    no_default_route = connection is None and not route_failed
+
+    if no_default_route and internet is not None and internet.reachable is True:
+        return DiagnosisResult(
+            code=DiagnosisCode.UNKNOWN,
+            title="The diagnosis is inconclusive.",
+            confidence=None,
+            summary=(
+                "Windows reported no active IPv4 default route, but WHYFI "
+                "received replies from public IPv4 targets."
+            ),
+            evidence=[
+                "No active IPv4 default route was found.",
+                f"Public IPv4 targets reachable: {internet.targets_reachable}.",
+            ],
+            recommendation="Run the diagnosis again and review the technical details.",
+        )
 
     # An active physical adapter with only a 169.254.x.x address strongly
     # suggests that Windows failed to receive an IPv4 lease from DHCP.
@@ -28,7 +46,8 @@ def diagnose_baseline(
     # This must be checked before NO_CONNECTION because a DHCP failure can
     # prevent Windows from having a usable default route at all.
     if (
-        local_config is not None
+        not route_failed
+        and local_config is not None
         and local_config.likely_dhcp_issue
     ):
         adapters = ", ".join(
@@ -56,8 +75,14 @@ def diagnose_baseline(
             ),
         )
 
-    # No usable Windows default connection was discovered.
-    if connection is None:
+    if no_default_route and (
+        (internet is not None and internet.reachable is False)
+        or (
+            local_config is not None
+            and not local_config.healthy
+            and not local_config.active_adapters
+        )
+    ):
         return DiagnosisResult(
             code=DiagnosisCode.NO_CONNECTION,
             title="You're not connected.",
@@ -74,24 +99,34 @@ def diagnose_baseline(
             ),
         )
 
-    # We found a connection, but one or more required checks failed to execute.
-    if gateway is None or internet is None or dns is None:
+    if (
+        connection is None
+        or gateway is None
+        or gateway.reachable is None
+        or internet is None
+        or internet.reachable is None
+        or dns is None
+        or any(
+            error.check in {"gateway", "internet", "local_config"}
+            for error in result.collection_errors
+        )
+    ):
         evidence = [
-            f"Primary adapter: {connection.adapter_name}",
-            f"IPv4 address: {connection.ipv4_address or 'Unavailable'}",
-            f"Gateway: {connection.gateway}",
+            f"{error.target}: {error.message}" if error.target else error.message
+            for error in result.collection_errors
         ]
-
-        if result.error:
+        if no_default_route:
+            evidence.insert(0, "No active IPv4 default route was found.")
+        if not evidence and result.error:
             evidence.append(result.error)
 
         return DiagnosisResult(
             code=DiagnosisCode.UNKNOWN,
-            title="I couldn't finish every test.",
-            confidence=55,
+            title="The diagnosis is inconclusive.",
+            confidence=None,
             summary=(
-                "WHYFI found your network connection, but one or more "
-                "diagnostic checks could not be completed."
+                "WHYFI could not collect the evidence needed to identify "
+                "a connection problem reliably."
             ),
             evidence=evidence,
             recommendation=(
@@ -179,6 +214,7 @@ def diagnose_baseline(
         and wifi.connected
         and is_weak_wifi_signal(wifi.signal_percent)
         and gateway.reachable
+        and gateway.packet_loss_percent is not None
         and gateway.packet_loss_percent >= _PACKET_LOSS_THRESHOLD_PERCENT
     ):
         signal_description = describe_wifi_signal(wifi.signal_percent)
@@ -209,6 +245,7 @@ def diagnose_baseline(
     # this computer and the local network.
     if (
         gateway.reachable
+        and gateway.packet_loss_percent is not None
         and gateway.packet_loss_percent >= _PACKET_LOSS_THRESHOLD_PERCENT
     ):
         return DiagnosisResult(
@@ -290,6 +327,7 @@ def diagnose_baseline(
         for probe in internet.probes
         if (
             probe.reachable
+            and probe.packet_loss_percent is not None
             and probe.packet_loss_percent >= _PACKET_LOSS_THRESHOLD_PERCENT
         )
     ]

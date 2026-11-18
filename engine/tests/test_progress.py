@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 
 from whyfi.diagnostics.windows import baseline, quality
-from whyfi.models.probes import PingResult
+from whyfi.models.probes import InternetReachabilityResult, PingResult
 
 
 def test_baseline_reports_progress(monkeypatch) -> None:
@@ -27,7 +27,7 @@ def test_baseline_reports_progress(monkeypatch) -> None:
     monkeypatch.setattr(
         baseline,
         "ping_host",
-        lambda target: object(),
+        lambda target: PingResult(target, True, 4, 4, 0.0),
     )
     monkeypatch.setattr(
         baseline,
@@ -37,7 +37,7 @@ def test_baseline_reports_progress(monkeypatch) -> None:
     monkeypatch.setattr(
         baseline,
         "check_internet_reachability",
-        lambda: object(),
+        lambda: InternetReachabilityResult(True, 2, 2),
     )
     monkeypatch.setattr(
         baseline,

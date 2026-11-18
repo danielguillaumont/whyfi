@@ -118,7 +118,7 @@ def test_quality_error_returns_unknown() -> None:
     diagnosis = diagnose_connection_quality(result)
 
     assert diagnosis.code == DiagnosisCode.UNKNOWN
-    assert diagnosis.confidence < 60
+    assert diagnosis.confidence is None
     assert diagnosis.evidence == [
         "No primary network connection was found."
     ]

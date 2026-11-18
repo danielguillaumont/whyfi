@@ -285,6 +285,56 @@ Streaming structured output:
 whyfi --stream-json
 ```
 
+`--json` prints a single object with `diagnosis` and `details`.
+`--stream-json` prints one JSON object per line, with `type: "progress"`
+for progress messages and `type: "result"` for the final object carrying
+the same `diagnosis` and `details`.
+
+- `diagnosis.confidence` is a percentage when assigned and `null` when
+  WHYFI cannot assign a confidence score.
+- ICMP `reachable` is `true` for a confirmed reply, `false` for a
+  completed measurement with no replies, and `null` when reachability
+  could not be determined. Unavailable probes have `null` packet counts
+  and packet loss. A completed probe with no replies reports zero packets
+  received and 100% loss. Latency and jitter are `null` when there are
+  too few replies to calculate them.
+- `details.internet.targets_tested` counts targets with a completed
+  ICMP measurement. Unavailable targets remain in `details.internet.probes`
+  with their error details.
+- `details.collection_errors` lists failed collection or consistency
+  checks. Each entry has a `check`, a `message`, and a `target` that is
+  `null` when the check has no specific probe target.
+
+For example, this excerpt from a streaming result shows conflicting route
+and public reachability evidence:
+
+```json
+{
+  "type": "result",
+  "diagnosis": {
+    "code": "unknown",
+    "title": "The diagnosis is inconclusive.",
+    "confidence": null,
+    "evidence": [
+      "No active IPv4 default route was found.",
+      "Public IPv4 targets reachable: 2."
+    ]
+  },
+  "details": {
+    "connection": null,
+    "internet": {"reachable": true, "targets_tested": 2, "targets_reachable": 2},
+    "completed": false,
+    "collection_errors": [
+      {
+        "check": "route_consistency",
+        "message": "No active IPv4 default route was found, but a public IPv4 target replied.",
+        "target": null
+      }
+    ]
+  }
+}
+```
+
 ---
 
 ## Testing

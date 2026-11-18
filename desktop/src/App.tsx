@@ -8,7 +8,7 @@ type AppState = "ready" | "diagnosing" | "result" | "error";
 type Diagnosis = {
   code: string;
   title: string;
-  confidence: number;
+  confidence: number | null;
   summary: string;
   evidence: string[];
   recommendation: string;
@@ -502,12 +502,16 @@ function App() {
                 <span className="result-status-dot" />
                 {import.meta.env.DEV && isPreview
                   ? "Development preview"
-                  : "Diagnosis complete"}
+                  : diagnosis.confidence == null
+                    ? "Inconclusive"
+                    : "Diagnosis complete"}
               </div>
 
-              <span className="confidence-badge">
-                {diagnosis.confidence}% confidence
-              </span>
+              {diagnosis.confidence != null && (
+                <span className="confidence-badge">
+                  {diagnosis.confidence}% confidence
+                </span>
+              )}
             </div>
 
             <p className="eyebrow">WHYFI RESULT</p>
@@ -666,8 +670,9 @@ function App() {
                         <DetailRow
                           label="Targets reachable"
                           value={
-                            details.internet.targets_reachable !== undefined &&
-                            details.internet.targets_tested !== undefined
+                            details.internet.targets_reachable != null &&
+                            details.internet.targets_tested != null &&
+                            details.internet.targets_tested > 0
                               ? `${details.internet.targets_reachable}/${details.internet.targets_tested}`
                               : undefined
                           }

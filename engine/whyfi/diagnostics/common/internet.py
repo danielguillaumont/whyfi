@@ -19,12 +19,22 @@ def check_internet_reachability(
 
     probes = [ping_host(target) for target in targets]
 
-    targets_reachable = sum(1 for probe in probes if probe.reachable)
+    targets_reachable = sum(probe.reachable is True for probe in probes)
+    targets_tested = sum(probe.reachable is not None for probe in probes)
+    if targets_reachable:
+        reachable = True
+        error = None
+    elif targets_tested == len(targets) and targets_tested:
+        reachable = False
+        error = "No public IP targets responded."
+    else:
+        reachable = None
+        error = "Public IP reachability could not be determined."
 
     return InternetReachabilityResult(
-        reachable=targets_reachable > 0,
-        targets_tested=len(probes),
+        reachable=reachable,
+        targets_tested=targets_tested,
         targets_reachable=targets_reachable,
         probes=probes,
-        error=None if targets_reachable > 0 else "No public IP targets responded.",
+        error=error,
     )
