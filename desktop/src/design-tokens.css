@@ -1,0 +1,39 @@
+/* R02 foundation. Import only when the workspace adopts these tokens. */
+:root {
+  --whyfi-color-canvas: #101319;
+  --whyfi-color-surface: #171c24;
+  --whyfi-color-surface-raised: #202632;
+  --whyfi-color-border: #303a49;
+  --whyfi-color-control-border: #697a90;
+  --whyfi-color-text: #eef3fa;
+  --whyfi-color-text-secondary: #aebacd;
+  --whyfi-color-accent: #84ceef;
+  --whyfi-color-on-accent: #101319;
+  --whyfi-color-healthy: #86d6b2;
+  --whyfi-color-problem: #ffc48a;
+  --whyfi-color-inconclusive: #c1c9d7;
+  --whyfi-color-error: #ff9eaa;
+  --whyfi-color-focus: #a9dfff;
+
+  --whyfi-font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --whyfi-font-data: "Cascadia Mono", Consolas, monospace;
+  --whyfi-text-small: 0.875rem;
+  --whyfi-text-body: 1rem;
+  --whyfi-text-title: 1.5rem;
+  --whyfi-text-line-height: 1.5;
+  --whyfi-title-line-height: 1.25;
+  --whyfi-weight-emphasis: 600;
+
+  --whyfi-space-1: 0.25rem;
+  --whyfi-space-2: 0.5rem;
+  --whyfi-space-3: 0.75rem;
+  --whyfi-space-4: 1rem;
+  --whyfi-space-6: 1.5rem;
+  --whyfi-space-8: 2rem;
+  --whyfi-control-min-height: 2.25rem;
+  --whyfi-border-width: 1px;
+  --whyfi-radius-control: 0.375rem;
+  --whyfi-radius-panel: 0.625rem;
+  --whyfi-focus-width: 2px;
+  --whyfi-focus-offset: 2px;
+}
