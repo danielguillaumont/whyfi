@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-investigation"
+description = "Allows the main window to start and cancel a WHYFI investigation."
+commands.allow = ["start_diagnosis", "cancel_diagnosis"]

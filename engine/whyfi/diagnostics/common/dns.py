@@ -96,7 +96,10 @@ try {
 } catch {}
 ConvertTo-Json -InputObject @{ interfaces = $rows; routes = $routes; policy = $policy } -Depth 5 -Compress
 """
-    result = _windows_json(script)
+    try:
+        result = _windows_json(script)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Windows DNS interface inventory timed out.") from None
     if not isinstance(result, dict) or not isinstance(result.get("interfaces"), list):
         raise ValueError("Unrecognized Windows DNS inventory.")
     if not result["interfaces"] or any(

@@ -436,3 +436,22 @@ def test_windows_client_subprocess_timeout_is_unavailable(monkeypatch):
     result = windows_dns.query_windows_dns_client()
     assert result.success is None
     assert "collection deadline" in result.error
+
+
+def test_windows_inventory_timeout_keeps_command_out_of_diagnostic_evidence(monkeypatch):
+    def timeout(script):
+        raise subprocess.TimeoutExpired(["powershell.exe", "-Command", script], 10)
+
+    monkeypatch.setattr(diagnostic, "_windows_json", timeout)
+    monkeypatch.setattr(
+        windows_dns, "query_windows_dns_client",
+        lambda: SystemDNSQueryResult("example.com.", True),
+    )
+
+    result = windows_dns.check_dns(primary_interface_index=20)
+
+    assert result.attribution_error == (
+        "Windows DNS interface inventory unavailable: Windows DNS interface inventory timed out."
+    )
+    assert result.system_query.success is True
+    assert not result.measurements_complete

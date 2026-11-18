@@ -78,7 +78,6 @@ pub fn run() {
     tauri::Builder::default()
         .manage(Investigations::default())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![start_diagnosis, cancel_diagnosis])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
