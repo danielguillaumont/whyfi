@@ -496,9 +496,14 @@ button {
   cursor: pointer;
 }
 
-.secondary-button:hover {
+.secondary-button:hover:not(:disabled) {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.05);
+}
+
+.secondary-button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .error-view {

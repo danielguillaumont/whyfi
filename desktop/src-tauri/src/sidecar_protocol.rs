@@ -89,7 +89,7 @@ impl SidecarProtocol {
                         if message.trim().is_empty() {
                             return Err("WHYFI sidecar sent an empty progress message.".into());
                         }
-                        on_progress(line)?;
+                        on_progress(&message)?;
                     }
                     Event::Result { diagnosis, details } => {
                         validate_result(&diagnosis, &details)?;
@@ -466,9 +466,8 @@ mod tests {
             let mut messages = Vec::new();
             for chunk in [&bytes[..split], &bytes[split..]] {
                 protocol
-                    .push(chunk, |line| {
-                        let event: Value = serde_json::from_str(line).unwrap();
-                        messages.push(event["message"].as_str().unwrap().to_owned());
+                    .push(chunk, |message| {
+                        messages.push(message.to_owned());
                         Ok(())
                     })
                     .unwrap();

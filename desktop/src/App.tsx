@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { Channel, invoke } from "@tauri-apps/api/core";
+import { InvestigationFlow } from "./investigation";
 import "./App.css";
 
-type AppState = "ready" | "diagnosing" | "result" | "error";
+type AppState = "ready" | "diagnosing" | "result" | "error" | "cancelled" | "timed_out";
 
 type Diagnosis = {
   code: string;
@@ -88,18 +88,19 @@ type DiagnosticDetails = {
   error?: string | null;
 };
 
-type ProgressEvent = {
-  type: "progress";
-  message: string;
-};
-
 type ResultEvent = {
   type: "result";
   diagnosis: Diagnosis;
   details: DiagnosticDetails;
 };
 
-type DiagnosticEvent = ProgressEvent | ResultEvent;
+type InvestigationEvent =
+  | { type: "started"; runId: string }
+  | { type: "progress"; runId: string; message: string };
+
+type InvestigationOutcome =
+  | { type: "completed"; runId: string; result: string }
+  | { type: "cancelled" | "timed_out" | "failed"; runId: string; message: string };
 
 type DetailRowProps = {
   label: string;
@@ -269,10 +270,12 @@ function adapterList(items: string[] | null | undefined) {
 }
 
 function App() {
+  const [flow] = useState(() => new InvestigationFlow());
   const [appState, setAppState] = useState<AppState>("ready");
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [details, setDetails] = useState<DiagnosticDetails | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [canCancel, setCanCancel] = useState(false);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
   const [progressMessage, setProgressMessage] = useState(
@@ -280,61 +283,72 @@ function App() {
   );
 
   async function handleDiagnose() {
+    const attempt = flow.begin();
+    if (!attempt) return;
+
     setAppState("diagnosing");
     setDiagnosis(null);
     setDetails(null);
     setErrorMessage("");
     setShowTechnicalDetails(false);
     setIsPreview(false);
+    setCanCancel(false);
     setProgressMessage("Preparing diagnostic engine...");
 
-    let unlisten: UnlistenFn | null = null;
-
+    let events: Channel<InvestigationEvent> | null = null;
     try {
-      unlisten = await listen<string>(
-        "whyfi-diagnostic-event",
-        (event) => {
-          try {
-            const diagnosticEvent = JSON.parse(
-              event.payload
-            ) as DiagnosticEvent;
-
-            if (diagnosticEvent.type === "progress") {
-              setProgressMessage(diagnosticEvent.message);
-            }
-          } catch (error) {
-            console.error(
-              "Could not parse WHYFI diagnostic event:",
-              error
-            );
-          }
+      events = new Channel<InvestigationEvent>((event) => {
+        if (event.type === "started" && flow.acknowledge(attempt, event.runId)) {
+          setCanCancel(true);
+        } else if (event.type === "progress" && flow.acceptsProgress(attempt, event.runId)) {
+          setProgressMessage(event.message);
         }
-      );
+      });
 
-      const response = await invoke<string>("run_diagnosis");
-      const result = JSON.parse(response) as DiagnosticEvent;
+      const outcome = await invoke<InvestigationOutcome>("start_diagnosis", { events });
+      if (!flow.isCurrent(attempt)) return;
 
-      if (result.type !== "result") {
-        throw new Error(
-          "WHYFI did not return a final diagnostic result."
-        );
+      if (outcome.type === "completed") {
+        const result = JSON.parse(outcome.result) as ResultEvent;
+        if (result.type !== "result") {
+          throw new Error("WHYFI did not return a final diagnostic result.");
+        }
+        if (!flow.finish(attempt, outcome.runId)) return;
+        setDiagnosis(result.diagnosis);
+        setDetails(result.details);
+        setAppState("result");
+      } else {
+        if (!flow.finish(attempt, outcome.runId)) return;
+        setErrorMessage(outcome.message);
+        setAppState(outcome.type === "failed" ? "error" : outcome.type);
       }
-
-      setDiagnosis(result.diagnosis);
-      setDetails(result.details);
-      setAppState("result");
+      setCanCancel(false);
     } catch (error) {
+      if (!flow.finish(attempt)) return;
       console.error("WHYFI diagnosis failed:", error);
-
-      setErrorMessage(
-        error instanceof Error ? error.message : String(error)
-      );
-
+      setCanCancel(false);
+      setErrorMessage(error instanceof Error ? error.message : String(error));
       setAppState("error");
     } finally {
-      if (unlisten) {
-        unlisten();
+      if (events) events.onmessage = () => {};
+    }
+  }
+
+  async function handleCancel() {
+    const request = flow.requestCancellation();
+    if (!request) return;
+    setCanCancel(false);
+    setProgressMessage("Cancelling investigation...");
+    try {
+      const accepted = await invoke<boolean>("cancel_diagnosis", { runId: request.runId });
+      if (!accepted && flow.isCurrent(request.attempt)) {
+        setProgressMessage("Finishing investigation...");
       }
+    } catch (error) {
+      if (!flow.retryCancellation(request.attempt)) return;
+      console.error("Could not request investigation cancellation:", error);
+      setProgressMessage("Could not request cancellation. Try Cancel again.");
+      setCanCancel(true);
     }
   }
 
@@ -385,7 +399,7 @@ function App() {
           </div>
         </header>
 
-        {appState === "ready" && (
+        {(appState === "ready" || appState === "cancelled") && (
           <>
             <div className="status-pill">
               <span className="status-dot" />
@@ -401,6 +415,10 @@ function App() {
                 WHYFI checks your computer, Wi-Fi, router, internet connection,
                 and DNS to find where the problem actually starts.
               </p>
+
+              {appState === "cancelled" && (
+                <p className="hero-copy" role="status">{errorMessage}</p>
+              )}
 
               <button
                 className="diagnose-button"
@@ -499,9 +517,20 @@ function App() {
               router, DNS, and internet connection.
             </p>
 
-            <div className="scan-line">
+            <div className="scan-line" role="status">
               <span className="scan-pulse" />
               {progressMessage}
+            </div>
+
+            <div className="result-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={handleCancel}
+                disabled={!canCancel}
+              >
+                Cancel
+              </button>
             </div>
 
             <p className="diagnosing-note">
@@ -842,17 +871,20 @@ function App() {
           </section>
         )}
 
-        {appState === "error" && (
+        {(appState === "error" || appState === "timed_out") && (
           <section className="error-view">
             <div className="error-symbol">!</div>
 
             <p className="eyebrow">DIAGNOSIS INTERRUPTED</p>
 
-            <h1>WHYFI couldn't finish the investigation.</h1>
+            <h1>{appState === "timed_out"
+              ? "The investigation timed out."
+              : "WHYFI couldn't finish the investigation."}</h1>
 
             <p className="error-copy">
-              The diagnostic engine returned an error before a result could
-              be produced.
+              {appState === "timed_out"
+                ? "The diagnostic engine reached the time limit before returning a result."
+                : "The diagnostic engine returned an error before a result could be produced."}
             </p>
 
             <div className="error-message">{errorMessage}</div>
