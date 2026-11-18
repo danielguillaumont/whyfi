@@ -7,7 +7,7 @@ from dataclasses import dataclass
 class WiFiConnection:
     """Represents the current Windows Wi-Fi connection."""
 
-    connected: bool
+    connected: bool | None
     interface_name: str | None = None
     ssid: str | None = None
     signal_percent: int | None = None

@@ -1,0 +1,251 @@
+"""Tests for configured DNS resolution and optional public comparisons."""
+
+import json
+import subprocess
+import sys
+
+import dns.exception
+import dns.message
+import dns.resolver
+import pytest
+
+from whyfi import __main__ as cli
+from whyfi.diagnosis.engine import diagnose_baseline
+from whyfi.diagnostics.common import dns as diagnostic
+from whyfi.diagnostics.windows import baseline
+from whyfi.models.diagnostic import BaselineDiagnosticResult
+from whyfi.models.diagnosis import DiagnosisCode
+from whyfi.models.dns import DNSQueryResult
+from whyfi.models.local_config import LocalConfigResult
+from whyfi.models.network import PrimaryConnection
+from whyfi.models.probes import InternetReachabilityResult, PingResult
+
+
+def mock_dns(monkeypatch, configured, outcomes):
+    calls = []
+    monkeypatch.setattr(diagnostic, "get_system_dns_servers", lambda index: configured)
+
+    def query(*, hostname, resolver_address):
+        calls.append(resolver_address)
+        outcome = outcomes[resolver_address]
+        return DNSQueryResult(
+            hostname, resolver_address, outcome,
+            error=None if outcome is True else "Lookup error",
+        )
+
+    monkeypatch.setattr(diagnostic, "query_dns", query)
+    return calls
+
+
+@pytest.mark.parametrize(("configured_outcomes", "expected_health", "code"), [
+    ((False, True), True, DiagnosisCode.UNKNOWN),
+    ((True, True), True, DiagnosisCode.HEALTHY),
+    ((False, False), False, DiagnosisCode.DNS_ISSUE),
+    ((False, None), None, DiagnosisCode.UNKNOWN),
+    ((None, True), True, DiagnosisCode.UNKNOWN),
+    ((True, None), True, DiagnosisCode.UNKNOWN),
+])
+def test_configured_dns_results_drive_baseline(
+    monkeypatch, configured_outcomes, expected_health, code
+):
+    servers = ["192.0.2.53", "192.0.2.54"]
+    calls = mock_dns(
+        monkeypatch, servers,
+        {**dict(zip(servers, configured_outcomes)), "1.1.1.1": True, "8.8.8.8": None},
+    )
+
+    result = diagnostic.check_dns()
+    diagnosis = diagnose_baseline(BaselineDiagnosticResult(
+        connection=PrimaryConnection("LAN", "ethernet", 7, "192.0.2.2", "192.0.2.1", True),
+        gateway=PingResult("192.0.2.1", True, 4, 4, 0.0),
+        internet=InternetReachabilityResult(True, 2, 2),
+        dns=result,
+        completed=True,
+    ))
+
+    assert result.healthy is expected_health
+    assert result.measurements_complete is (None not in configured_outcomes)
+    assert result.default_resolver == servers[0]
+    assert result.default_query is result.configured_queries[0]
+    assert [query.success for query in result.configured_queries] == list(configured_outcomes)
+    assert calls == servers + (["1.1.1.1", "8.8.8.8"] if expected_health is False else [])
+    assert result.likely_dns_issue is (expected_health is False)
+    assert diagnosis.code is code
+    if expected_health is True and configured_outcomes != (True, True):
+        assert diagnosis.title == "DNS works through some configured resolvers."
+        assert "resolved the test name: 1/2" in " ".join(diagnosis.evidence)
+    if code is DiagnosisCode.UNKNOWN:
+        assert diagnosis.confidence is None
+    elif code is DiagnosisCode.HEALTHY:
+        assert diagnosis.confidence == 96
+
+
+@pytest.mark.parametrize(("packet_loss", "code"), [
+    (0.0, "unknown"),
+    (25.0, "unstable_connection"),
+])
+def test_partial_dns_collection_reaches_stream_without_masking_gateway_evidence(
+    monkeypatch, capsys, packet_loss, code
+):
+    gateway = "192.0.2.1"
+    first, second = "192.0.2.53", "192.0.2.54"
+    mock_dns(monkeypatch, [first, second], {first: None, second: True})
+    monkeypatch.setattr(
+        baseline, "get_primary_connection",
+        lambda: PrimaryConnection("LAN", "ethernet", 7, "192.0.2.2", gateway, True),
+    )
+    monkeypatch.setattr(baseline, "check_local_config", lambda: LocalConfigResult(True))
+    monkeypatch.setattr(baseline, "get_wifi_connection", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        baseline, "ping_host",
+        lambda target: PingResult(target, True, 4, 4 if not packet_loss else 3, packet_loss),
+    )
+    monkeypatch.setattr(
+        baseline, "check_internet_reachability", lambda: InternetReachabilityResult(True, 2, 2)
+    )
+    monkeypatch.setattr(sys, "argv", ["whyfi", "--stream-json"])
+
+    cli.main()
+
+    result = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert result["diagnosis"]["code"] == code
+    assert (result["diagnosis"]["confidence"] is None) is (code == "unknown")
+    assert result["details"]["completed"] is False
+    dns_details = result["details"]["dns"]
+    assert dns_details["healthy"] is True
+    assert [query["success"] for query in dns_details["configured_queries"]] == [None, True]
+    assert result["details"]["collection_errors"] == [
+        {"check": "dns", "message": "Lookup error", "target": first},
+    ]
+
+
+def test_duplicate_resolvers_and_unavailable_public_comparison(monkeypatch):
+    calls = mock_dns(
+        monkeypatch,
+        ["2001:0DB8::53", "2001:db8::53", "1.1.1.1", "1.1.1.1"],
+        {"2001:0DB8::53": False, "1.1.1.1": False, "8.8.8.8": None},
+    )
+
+    result = diagnostic.check_dns()
+
+    assert calls == ["2001:0DB8::53", "1.1.1.1", "8.8.8.8"]
+    assert result.healthy is False
+    assert len(result.configured_queries) == 2
+    assert [query.success for query in result.alternate_queries] == [None]
+
+
+def test_custom_dns_name_is_never_sent_to_public_comparison_resolvers(monkeypatch):
+    calls = mock_dns(monkeypatch, ["192.0.2.53"], {"192.0.2.53": False})
+
+    result = diagnostic.check_dns("service.internal.example")
+
+    assert calls == ["192.0.2.53"]
+    assert result.alternate_queries == []
+
+
+def test_known_empty_configuration_differs_from_discovery_failure(monkeypatch):
+    calls = mock_dns(monkeypatch, [], {})
+    empty = diagnostic.check_dns()
+
+    def fail(index):
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr(diagnostic, "get_system_dns_servers", fail)
+    unavailable = diagnostic.check_dns()
+
+    assert calls == []
+    assert empty.healthy is False
+    assert empty.default_query is None
+    assert unavailable.healthy is None
+    assert "access denied" in unavailable.error
+
+
+def test_windows_dns_configuration_prefers_primary_and_scopes_ipv6(monkeypatch):
+    rows = [
+        {"index": 3, "metric": 5, "family": 2, "servers": ["192.0.2.53"]},
+        {"index": 7, "metric": 15, "family": 23, "servers": ["fe80::53"]},
+        {"index": 7, "metric": 15, "family": 2, "servers": ["198.51.100.53", "198.51.100.54"]},
+        {"index": 9, "metric": 50, "family": 23, "servers": [
+            "FEC0:0:0:FFFF::1%1", "fec0:0:0:ffff::2%1", "fec0:0:0:ffff::3%1",
+        ]},
+    ]
+    monkeypatch.setattr(diagnostic.sys, "platform", "win32")
+    monkeypatch.setattr(
+        diagnostic.subprocess, "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 0, json.dumps(rows), ""),
+    )
+
+    assert diagnostic.get_system_dns_servers(7) == [
+        "198.51.100.53", "198.51.100.54", "fe80::53%7", "192.0.2.53",
+        "FEC0:0:0:FFFF::1%1", "fec0:0:0:ffff::2%1", "fec0:0:0:ffff::3%1",
+    ]
+
+
+@pytest.mark.parametrize(("stdout", "stderr", "exit_code"), [
+    ("[]", "Windows returned no DNS configuration record for interface 7:2.", 1),
+    ("[]", "", 0),
+    ('[{"index":3,"family":2,"metric":1,"servers":["192.0.2.53"]}]', "", 0),
+    ('[{"index":7,"family":2,"metric":1,"servers":[null]}]', "", 0),
+])
+def test_incomplete_windows_enumeration_cannot_confirm_empty_dns(
+    monkeypatch, stdout, stderr, exit_code
+):
+    monkeypatch.setattr(diagnostic.sys, "platform", "win32")
+    monkeypatch.setattr(
+        diagnostic.subprocess, "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, exit_code, stdout, stderr),
+    )
+
+    result = diagnostic.check_dns(primary_interface_index=7)
+
+    assert result.healthy is None
+    assert not result.measurements_complete
+    assert not result.likely_dns_issue
+    assert result.configured_queries == []
+    assert result.error
+
+
+def test_complete_empty_windows_inventory_for_primary_confirms_no_configured_dns(monkeypatch):
+    row = {"index": 7, "family": 2, "metric": 10, "servers": []}
+    monkeypatch.setattr(diagnostic.sys, "platform", "win32")
+    monkeypatch.setattr(
+        diagnostic.subprocess, "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 0, json.dumps([row]), ""),
+    )
+
+    result = diagnostic.check_dns(primary_interface_index=7)
+
+    assert result.healthy is False
+    assert result.measurements_complete
+    assert result.configured_queries == []
+
+
+@pytest.mark.parametrize(("error", "expected"), [
+    (dns.resolver.NXDOMAIN(), False),
+    (dns.resolver.NoAnswer(), False),
+    (dns.exception.Timeout(), False),
+    (PermissionError("socket denied"), None),
+    (dns.resolver.NoNameservers(
+        request=dns.message.make_query("example.com", "A"),
+        errors=[("192.0.2.53", False, 53, "SERVFAIL", object())],
+    ), False),
+    (dns.resolver.NoNameservers(
+        request=dns.message.make_query("example.com", "A"),
+        errors=[("192.0.2.53", False, 53, OSError("network unreachable"), None)],
+    ), None),
+])
+def test_dns_lookup_distinguishes_failed_from_unavailable(monkeypatch, error, expected):
+    def resolve(self, hostname, record_type, *, search):
+        assert hostname == "example.com"
+        assert record_type == "A"
+        assert search is False
+        raise error
+
+    monkeypatch.setattr(dns.resolver.Resolver, "resolve", resolve)
+
+    result = diagnostic.query_dns("example.com", "192.0.2.53")
+
+    assert result.success is expected
+    assert result.error
+    assert result.addresses == []
+    assert result.latency_ms is None

@@ -228,7 +228,7 @@ def test_dns_failure() -> None:
     diagnosis = diagnose_baseline(baseline)
 
     assert diagnosis.code == DiagnosisCode.DNS_ISSUE
-    assert diagnosis.confidence >= 90
+    assert diagnosis.confidence == 88
 
 
 def test_local_packet_loss() -> None:

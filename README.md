@@ -304,6 +304,38 @@ the same `diagnosis` and `details`.
 - `details.collection_errors` lists failed collection or consistency
   checks. Each entry has a `check`, a `message`, and a `target` that is
   `null` when the check has no specific probe target.
+- `details.wifi.connected` is `false` when the command confirms no
+  connected Wi-Fi interface, and `null` when discovery fails or an
+  interface cannot be selected reliably. The `error` field explains why.
+  WHYFI matches the primary adapter's name when that name is available.
+  It requires a recognized interface count and complete records, or a
+  recognized message that Windows has no wireless interface. Other formats
+  are reported as unavailable.
+- `details.dns.configured_queries` contains an ordered result for each
+  distinct resolver on connected Windows interfaces, starting with the
+  primary interface when available. Reported IPv6 addresses are preserved,
+  including scope identifiers. DNS inventory that omits a connected interface's
+  configuration is unavailable.
+  `default_resolver` and `default_query`
+  still describe the first entry, even if a later resolver succeeds.
+  A query's `success` is `null` if it could not be measured. Overall
+  `healthy` is `true` if any configured resolver resolves the test name,
+  `false` if all measured lookups fail or no resolver is configured, and
+  `null` if none succeeded and some measurements are unavailable.
+  `likely_dns_issue` reflects a failed configured test, including a known
+  empty configuration.
+
+A successful lookup establishes that the test name resolves through at least
+one configured resolver. If other configured lookups failed or were unavailable,
+the overall diagnosis is `unknown` with `confidence: null` unless independent
+network evidence supports another diagnosis. Unavailable configured lookups
+also appear in `details.collection_errors`.
+
+DNS results describe direct lookups for the test name. They do not measure
+Windows per-domain resolver selection, private-zone reachability, or encrypted
+DNS policy. Public comparisons run only for the built-in `example.com` test
+when all configured lookups fail. Their results stay in `alternate_queries`
+and do not determine configured DNS health.
 
 For example, this excerpt from a streaming result shows conflicting route
 and public reachability evidence:

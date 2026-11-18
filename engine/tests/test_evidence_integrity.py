@@ -21,8 +21,9 @@ from whyfi.models.probes import PingResult
 @pytest.fixture
 def baseline_probes(monkeypatch):
     monkeypatch.setattr(baseline, "check_local_config", lambda: LocalConfigResult(True))
+    monkeypatch.setattr(baseline, "get_wifi_connection", lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        baseline, "check_dns", lambda: DNSDiagnosticResult(True, None, None)
+        baseline, "check_dns", lambda **kwargs: DNSDiagnosticResult(True, None, None)
     )
     monkeypatch.setattr(
         internet, "ping_host", lambda target: PingResult(target, True, 4, 4, 0.0)
@@ -185,7 +186,9 @@ def test_baseline_does_not_treat_unavailable_icmp_as_loss(
     gateway = "192.0.2.1"
     monkeypatch.setattr(
         baseline, "get_primary_connection",
-        lambda: SimpleNamespace(gateway=gateway, adapter_type="ethernet", adapter_name="LAN"),
+        lambda: SimpleNamespace(
+            gateway=gateway, adapter_type="ethernet", adapter_name="LAN", interface_index=7
+        ),
     )
 
     def ping(target):
