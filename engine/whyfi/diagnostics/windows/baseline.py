@@ -10,7 +10,7 @@ from whyfi.diagnostics.windows.local_config import check_local_config
 from whyfi.diagnostics.windows.ping import ping_host
 from whyfi.diagnostics.windows.primary import get_primary_connection
 from whyfi.diagnostics.windows.wifi import get_wifi_connection
-from whyfi.models.diagnostic import BaselineDiagnosticResult
+from whyfi.models.diagnostic import BaselineDiagnosticResult, DiagnosticError
 
 
 ProgressCallback = Callable[[str], None]
@@ -37,7 +37,7 @@ def run_baseline_diagnostics(
     dns = None
     wifi = None
     local_config = None
-    errors: list[str] = []
+    errors: list[DiagnosticError] = []
 
     # Local configuration is checked independently because it may reveal
     # problems even when Windows has no usable default route.
@@ -49,7 +49,9 @@ def run_baseline_diagnostics(
     try:
         local_config = check_local_config()
     except Exception as exc:
-        errors.append(f"Local configuration check failed: {exc}")
+        errors.append(DiagnosticError(
+            "local_config", f"Local configuration check failed: {exc}"
+        ))
 
     _report_progress(
         progress,
@@ -59,7 +61,9 @@ def run_baseline_diagnostics(
     try:
         connection = get_primary_connection()
     except Exception as exc:
-        errors.append(f"Primary connection discovery failed: {exc}")
+        errors.append(DiagnosticError(
+            "route", f"Primary connection discovery failed: {exc}"
+        ))
 
     if connection is not None:
         _report_progress(
@@ -70,7 +74,16 @@ def run_baseline_diagnostics(
         try:
             gateway = ping_host(connection.gateway)
         except Exception as exc:
-            errors.append(f"Gateway test failed: {exc}")
+            errors.append(DiagnosticError(
+                "gateway", f"Gateway test failed: {exc}", connection.gateway
+            ))
+        else:
+            if gateway.reachable is None:
+                errors.append(DiagnosticError(
+                    "gateway",
+                    gateway.error or "Gateway measurement unavailable.",
+                    gateway.target,
+                ))
 
         if connection.adapter_type == "wifi":
             _report_progress(
@@ -81,9 +94,7 @@ def run_baseline_diagnostics(
             try:
                 wifi = get_wifi_connection()
             except Exception as exc:
-                errors.append(f"Wi-Fi discovery failed: {exc}")
-    else:
-        errors.append("No primary network connection was found.")
+                errors.append(DiagnosticError("wifi", f"Wi-Fi discovery failed: {exc}"))
 
     _report_progress(
         progress,
@@ -93,7 +104,26 @@ def run_baseline_diagnostics(
     try:
         internet = check_internet_reachability()
     except Exception as exc:
-        errors.append(f"Internet reachability test failed: {exc}")
+        errors.append(DiagnosticError(
+            "internet", f"Internet reachability test failed: {exc}"
+        ))
+    else:
+        if (
+            connection is None
+            and not any(error.check == "route" for error in errors)
+            and internet.reachable is True
+        ):
+            errors.append(DiagnosticError(
+                "route_consistency",
+                "No active IPv4 default route was found, but a public IPv4 target replied.",
+            ))
+        for probe in internet.probes:
+            if probe.reachable is None:
+                errors.append(DiagnosticError(
+                    "internet",
+                    probe.error or "Public ICMP measurement unavailable.",
+                    probe.target,
+                ))
 
     _report_progress(
         progress,
@@ -103,7 +133,7 @@ def run_baseline_diagnostics(
     try:
         dns = check_dns()
     except Exception as exc:
-        errors.append(f"DNS diagnostic failed: {exc}")
+        errors.append(DiagnosticError("dns", f"DNS diagnostic failed: {exc}"))
 
     completed = (
         connection is not None
@@ -111,6 +141,8 @@ def run_baseline_diagnostics(
         and internet is not None
         and dns is not None
         and local_config is not None
+        and internet.reachable is not None
+        and not any(error.check in {"gateway", "internet"} for error in errors)
     )
 
     return BaselineDiagnosticResult(
@@ -121,5 +153,6 @@ def run_baseline_diagnostics(
         wifi=wifi,
         local_config=local_config,
         completed=completed,
-        error="; ".join(errors) if errors else None,
+        error="; ".join(error.message for error in errors) or None,
+        collection_errors=errors,
     )

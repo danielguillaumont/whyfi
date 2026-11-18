@@ -61,13 +61,7 @@ def _is_usable_ipv4(address: str) -> bool:
 def check_local_config() -> LocalConfigResult:
     """Inspect active Windows adapters for usable IPv4 configuration."""
 
-    try:
-        adapters = get_network_adapters()
-    except Exception as exc:
-        return LocalConfigResult(
-            healthy=False,
-            error=f"Adapter discovery failed: {exc}",
-        )
+    adapters = get_network_adapters()
 
     active_adapters: list[str] = []
     usable_ipv4_adapters: list[str] = []

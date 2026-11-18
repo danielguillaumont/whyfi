@@ -13,16 +13,27 @@ def diagnose_connection_quality(
 
     gateway = result.gateway
 
-    if result.error is not None or gateway is None:
-        evidence = []
+    public_errors = [
+        f"{probe.target}: {probe.error or 'ICMP measurement unavailable.'}"
+        for probe in result.internet_probes
+        if probe.reachable is None
+    ]
 
-        if result.error:
-            evidence.append(result.error)
+    if (
+        result.error is not None
+        or gateway is None
+        or gateway.reachable is None
+        or (public_errors and not result.gateway_unstable)
+    ):
+        evidence = [result.error] if result.error else []
+        if gateway is not None and gateway.reachable is None:
+            evidence.append(f"{gateway.target}: {gateway.error or 'ICMP measurement unavailable.'}")
+        evidence.extend(public_errors)
 
         return DiagnosisResult(
             code=DiagnosisCode.UNKNOWN,
             title="I couldn't measure connection quality.",
-            confidence=55,
+            confidence=None,
             summary=(
                 "WHYFI could not collect enough information to determine "
                 "whether the connection is stable."
@@ -45,6 +56,7 @@ def diagnose_connection_quality(
                 f"Gateway jitter: "
                 f"{gateway.jitter_ms if gateway.jitter_ms is not None else 'Unavailable'} ms."
             ),
+            *public_errors,
         ]
 
         return DiagnosisResult(

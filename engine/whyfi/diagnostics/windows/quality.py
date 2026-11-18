@@ -92,7 +92,8 @@ def check_connection_quality(
     )
 
     gateway_high_jitter = (
-        gateway.jitter_ms is not None
+        gateway.reachable is True
+        and gateway.jitter_ms is not None
         and gateway.jitter_ms >= _GATEWAY_JITTER_THRESHOLD_MS
     )
 
@@ -113,6 +114,7 @@ def check_connection_quality(
 
     gateway_packet_loss = (
         gateway.reachable
+        and gateway.packet_loss_percent is not None
         and gateway.packet_loss_percent
         >= _PACKET_LOSS_THRESHOLD_PERCENT
     )
@@ -122,6 +124,7 @@ def check_connection_quality(
         for probe in internet_probes
         if (
             probe.reachable
+            and probe.packet_loss_percent is not None
             and probe.packet_loss_percent
             >= _PACKET_LOSS_THRESHOLD_PERCENT
         )
@@ -154,8 +157,9 @@ def check_connection_quality(
     )
 
     healthy = (
-        gateway.reachable
+        gateway.reachable is True
         and any(probe.reachable for probe in internet_probes)
+        and all(probe.reachable is not None for probe in internet_probes)
         and not gateway_unstable
         and not internet_unstable
     )
