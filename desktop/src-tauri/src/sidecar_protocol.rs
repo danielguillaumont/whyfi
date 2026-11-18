@@ -286,6 +286,7 @@ fn validate_details(details: &Value) -> Result<(), String> {
                 ("healthy", Value::is_boolean),
                 ("default_resolver", Value::is_string),
                 ("error", Value::is_string),
+                ("attribution_error", Value::is_string),
             ],
         )?;
         if let Some(query) = dns.get("default_query").filter(|query| !query.is_null()) {
@@ -296,6 +297,30 @@ fn validate_details(details: &Value) -> Result<(), String> {
             "details.dns.configured_queries",
             false,
             validate_dns_query,
+        )?;
+        if let Some(query) = dns.get("system_query").filter(|query| !query.is_null()) {
+            validate_dns_query(query, "details.dns.system_query")?;
+        }
+        validate_list(
+            dns.get("resolver_evidence"),
+            "details.dns.resolver_evidence",
+            false,
+            |value, path| {
+                validate_fields(
+                    value,
+                    path,
+                    &[
+                        ("interface_index", Value::is_u64),
+                        ("interface_alias", Value::is_string),
+                        ("address_family", Value::is_string),
+                        ("resolver", Value::is_string),
+                        ("scope", Value::is_string),
+                        ("primary", Value::is_boolean),
+                        ("route_on_interface", Value::is_boolean),
+                        ("provenance", Value::is_string),
+                    ],
+                )
+            },
         )?;
     }
     if let Some(wifi) = section("wifi") {
@@ -630,6 +655,14 @@ mod tests {
                 "details.dns.configured_queries[0].success",
             ),
             (
+                json!({"dns": {"system_query": {"success": "yes"}}}),
+                "details.dns.system_query.success",
+            ),
+            (
+                json!({"dns": {"resolver_evidence": [{"interface_alias": ["Wi-Fi"]}]}}),
+                "details.dns.resolver_evidence[0].interface_alias",
+            ),
+            (
                 json!({"wifi": {"signal_percent": []}}),
                 "details.wifi.signal_percent",
             ),
@@ -660,7 +693,17 @@ mod tests {
             "connection": null,
             "gateway": {"reachable": null, "packet_loss_percent": null},
             "internet": {"reachable": null, "probes": [{"target": "192.0.2.1", "average_latency_ms": null}]},
-            "dns": {"default_query": null, "configured_queries": [{"resolver": "192.0.2.2", "success": null, "error": null}]},
+            "dns": {
+                "default_query": null,
+                "configured_queries": [{"resolver": "192.0.2.2", "success": null, "error": null}],
+                "system_query": {"success": null, "error": "Unavailable"},
+                "resolver_evidence": [{
+                    "interface_index": 20, "interface_alias": "Wi-Fi", "address_family": "IPv6",
+                    "resolver": "fe80::53%20", "scope": "20", "primary": true,
+                    "route_on_interface": null, "provenance": "unknown",
+                }],
+                "attribution_error": null,
+            },
             "wifi": {"connected": null},
             "local_config": {"active_adapters": null, "usable_ipv4_adapters": []},
             "future_metric": {"status": true},

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from whyfi.diagnostics.common.dns import check_dns
+from whyfi.diagnostics.windows.dns import check_dns
 from whyfi.diagnostics.common.internet import check_internet_reachability
 from whyfi.diagnostics.windows.local_config import check_local_config
 from whyfi.diagnostics.windows.ping import ping_host
@@ -143,6 +143,10 @@ def run_baseline_diagnostics(
     else:
         if dns.healthy is None and dns.error:
             errors.append(DiagnosticError("dns", dns.error))
+        if dns.attribution_error:
+            errors.append(DiagnosticError("dns", dns.attribution_error))
+        if dns.system_query is not None and dns.system_query.success is None:
+            errors.append(DiagnosticError("dns", dns.system_query.error or "System lookup unavailable."))
         for query in dns.configured_queries:
             if query.success is None:
                 errors.append(DiagnosticError(

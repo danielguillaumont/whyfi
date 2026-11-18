@@ -273,12 +273,20 @@ def diagnose_baseline(
     configured_queries = dns.configured_queries if dns is not None else []
     if not configured_queries and dns is not None and dns.default_query is not None:
         configured_queries = [dns.default_query]
+    system_query = dns.system_query if dns is not None else None
+    conflicting_dns = (
+        system_query is not None
+        and system_query.success is not None
+        and dns.healthy is not None
+        and system_query.success != dns.healthy
+    )
 
     if (
         internet.reachable
         and dns is not None
         and dns.healthy is False
         and dns.measurements_complete
+        and not conflicting_dns
     ):
         return DiagnosisResult(
             code=DiagnosisCode.DNS_ISSUE,
@@ -345,7 +353,7 @@ def diagnose_baseline(
 
     resolved = sum(query.success is True for query in configured_queries)
     partial_dns = 0 < resolved < len(configured_queries)
-    if dns is None or not dns.measurements_complete or partial_dns:
+    if dns is None or not dns.measurements_complete or partial_dns or conflicting_dns:
         evidence = [
             f"{query.resolver}: {query.error or 'Lookup result unavailable.'}"
             for query in configured_queries
@@ -359,20 +367,26 @@ def diagnose_baseline(
             )
         if dns is not None and dns.error:
             evidence.append(dns.error)
+        if dns is not None and dns.attribution_error:
+            evidence.append(dns.attribution_error)
+        if system_query is not None and system_query.error:
+            evidence.append(system_query.error)
+        if conflicting_dns:
+            evidence.append("Windows DNS-client and direct resolver lookups gave different results.")
         if dns is None and result.error:
             evidence.append(result.error)
         return DiagnosisResult(
             code=DiagnosisCode.UNKNOWN,
             title=(
                 "DNS works through some configured resolvers."
-                if partial_dns else "The DNS test is inconclusive."
+                if partial_dns and not conflicting_dns else "The DNS test is inconclusive."
             ),
             confidence=None,
             summary=(
                 "At least one configured resolver answered the test lookup. "
                 "Other configured lookups failed or were unavailable."
-                if partial_dns else
-                "WHYFI could not collect enough evidence about configured DNS resolution."
+                if partial_dns and not conflicting_dns else
+                "WHYFI could not establish consistent DNS evidence for this connection."
             ),
             evidence=evidence,
             recommendation="Run the diagnosis again and review the DNS details.",
@@ -403,6 +417,8 @@ def diagnose_baseline(
                 f"Configured DNS resolvers that resolved the test name: "
                 f"{resolved}/{len(configured_queries)}."
             )
+        if system_query is not None:
+            evidence.append("The Windows DNS client resolved the test name.")
         if (
             connection.adapter_type == "wifi"
             and wifi is not None
