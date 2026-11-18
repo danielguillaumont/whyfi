@@ -1,6 +1,6 @@
 # WHYFI R02 workspace specification
 
-This foundation targets Windows WebView2 and the baseline at `fd5dc5073a0e579de77f9b910fee24beb2c11492`. It specifies a future UI. The current app does not import the token stylesheet.
+This foundation targets Windows WebView2 and the diagnostic contracts at `fd5dc5073a0e579de77f9b910fee24beb2c11492`. The workspace shell adopts the token stylesheet. The deeper result and evidence redesign remains a later slice.
 
 ## Users and workflow
 
