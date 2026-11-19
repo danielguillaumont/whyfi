@@ -28,14 +28,14 @@ export function ResultOverview({ diagnosis, details, start, showEvidence }: {
     <section className="workspace-view result-overview">
       <header className="result-hero">
         <div className="result-meta">
-          <span className={`result-status result-status-${summary.tone}`}>
+          <span id="diagnosis-outcome" className={`result-status result-status-${summary.tone}`}>
             <span aria-hidden="true">{summary.tone === "healthy" ? "✓" : summary.tone === "problem" ? "!" : "?"}</span>
             {summary.status}
           </span>
           {details === null && <span>Development preview</span>}
           {summary.confidence !== undefined && <span>Rule-based engine score {summary.confidence}</span>}
         </div>
-        <h1 tabIndex={-1}>{diagnosis.title}</h1>
+        <h1 tabIndex={-1} aria-describedby="diagnosis-outcome">{diagnosis.title}</h1>
         <p className="view-description">{diagnosis.summary}</p>
       </header>
 
