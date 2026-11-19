@@ -1,48 +1,78 @@
-import type { Diagnosis } from "./diagnosticTypes";
+import type { Diagnosis, DiagnosticDetails } from "./diagnosticTypes";
+import { resultSummary } from "./resultSummary";
+import "./ResultOverview.css";
 
-export function ResultOverview({ diagnosis, hasEvidence, start, showEvidence }: {
+function CheckSummary({ check }: { check: ReturnType<typeof resultSummary>["dns"] }) {
+  return (
+    <>
+      <h3>{check.label}</h3>
+      <p className={`check-status check-status-${check.state}`}>{check.status}</p>
+      {check.measurements.length > 0 && (
+        <ul className="check-measurements">
+          {check.measurements.map(measurement => <li key={measurement}>{measurement}</li>)}
+        </ul>
+      )}
+    </>
+  );
+}
+
+export function ResultOverview({ diagnosis, details, start, showEvidence }: {
   diagnosis: Diagnosis;
-  hasEvidence: boolean;
+  details: DiagnosticDetails | null;
   start: () => void;
   showEvidence: () => void;
 }) {
-  const status = diagnosis.code === "healthy" ? "healthy"
-    : diagnosis.code === "unknown" ? "inconclusive" : "problem";
-  const labels = { healthy: "Healthy", inconclusive: "Inconclusive", problem: "Problem found" };
+  const summary = resultSummary(diagnosis, details);
 
   return (
-    <section className="workspace-view">
-      <div className="result-meta">
-        {!hasEvidence && <span>Development preview</span>}
-        <span className={`result-status result-status-${status}`}>
-          <span aria-hidden="true">{status === "healthy" ? "✓" : status === "problem" ? "!" : "?"}</span>
-          {labels[status]}
-        </span>
-        {diagnosis.confidence != null && <span>{diagnosis.confidence}% confidence</span>}
-      </div>
-      <h1 tabIndex={-1}>{diagnosis.title}</h1>
-      <p className="view-description">{diagnosis.summary}</p>
-      {diagnosis.recommendation && (
-        <article className="result-panel">
-          <h2>What to do</h2>
-          <p>{diagnosis.recommendation}</p>
-        </article>
-      )}
-      <div className="workspace-actions">
-        <button className="button button-primary" type="button" onClick={start}>Run again</button>
-        {hasEvidence && (
-          <button className="button button-secondary" type="button" onClick={showEvidence} data-evidence-entry>
-            View evidence
-          </button>
-        )}
-      </div>
-      {diagnosis.evidence.length > 0 && (
-        <article className="result-panel">
-          <h2>Evidence</h2>
+    <section className="workspace-view result-overview">
+      <header className="result-hero">
+        <div className="result-meta">
+          <span className={`result-status result-status-${summary.tone}`}>
+            <span aria-hidden="true">{summary.tone === "healthy" ? "✓" : summary.tone === "problem" ? "!" : "?"}</span>
+            {summary.status}
+          </span>
+          {details === null && <span>Development preview</span>}
+          {summary.confidence !== undefined && <span>Rule-based engine score {summary.confidence}</span>}
+        </div>
+        <h1 tabIndex={-1}>{diagnosis.title}</h1>
+        <p className="view-description">{diagnosis.summary}</p>
+      </header>
+
+      <section className="result-panel result-next" aria-labelledby="result-next-heading">
+        <div>
+          <h2 id="result-next-heading">{diagnosis.recommendation ? "Next action" : "Investigation actions"}</h2>
+          {diagnosis.recommendation && <p>{diagnosis.recommendation}</p>}
+        </div>
+        <div className="workspace-actions">
+          <button className="button button-primary" type="button" onClick={start}>Run again</button>
+          {details !== null && (
+            <button className="button button-secondary" type="button" onClick={showEvidence} data-evidence-entry>
+              View evidence
+            </button>
+          )}
+        </div>
+      </section>
+
+      {details !== null && <section className="result-panel result-path" aria-labelledby="result-path-heading">
+        <h2 id="result-path-heading">Connection checks</h2>
+        <ol className="connection-checks" role="list">
+          {summary.path.map(item => (
+            <li key={item.label}><CheckSummary check={item} /></li>
+          ))}
+        </ol>
+        <div className="result-dns">
+          <CheckSummary check={summary.dns} />
+        </div>
+      </section>}
+
+      {summary.findings.length > 0 && (
+        <section className="result-panel">
+          <h2>Supporting findings</h2>
           <ul className="findings">
-            {diagnosis.evidence.map((item, index) => <li key={index}>{item}</li>)}
+            {summary.findings.map(item => <li key={item}>{item}</li>)}
           </ul>
-        </article>
+        </section>
       )}
     </section>
   );

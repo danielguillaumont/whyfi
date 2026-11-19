@@ -14,12 +14,13 @@ export default function App() {
       {state.phase === "completed" && state.view === "result" ? (
         <ResultOverview
           diagnosis={state.diagnosis}
-          hasEvidence={state.details !== null}
+          details={state.details}
           start={start}
           showEvidence={() => navigate("evidence")}
         />
       ) : state.phase === "completed" && state.view === "evidence" && state.details ? (
-        <TechnicalEvidence details={state.details} onBack={() => navigate("result")} />
+        <TechnicalEvidence details={state.details} findings={state.diagnosis.evidence}
+          onBack={() => navigate("result")} />
       ) : (
         <DiagnosisScreen state={state} start={start} cancel={cancel} preview={preview} />
       )}

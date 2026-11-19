@@ -54,11 +54,15 @@ function adapterList(items: string[] | null | undefined) {
     : undefined;
 }
 
-export function TechnicalEvidence({ details, onBack }: {
+export function TechnicalEvidence({ details, findings, onBack }: {
   details: DiagnosticDetails;
+  findings: string[];
   onBack: () => void;
 }) {
   const { rows: notes, fallback: collectionError } = collectionNotes(details.collection_errors, details.error);
+  const engineFindings = Array.isArray(findings)
+    ? findings.filter(item => typeof item === "string" && item.trim().length > 0)
+    : [];
   return (
     <section className="workspace-view">
       <div className="view-heading">
@@ -66,6 +70,14 @@ export function TechnicalEvidence({ details, onBack }: {
         <button className="button button-secondary" type="button" onClick={onBack}>Back to result</button>
       </div>
       <p className="view-description">Measurements from the current investigation.</p>
+      {engineFindings.length > 0 && (
+        <section className="result-panel">
+          <h2>Diagnosis findings</h2>
+          <ul className="findings">
+            {engineFindings.map((item, index) => <li key={index}>{item}</li>)}
+          </ul>
+        </section>
+      )}
       <div className="result-grid">
         {details.connection && (
           <article className="result-panel">

@@ -1,6 +1,6 @@
 # WHYFI R02 workspace specification
 
-This foundation targets Windows WebView2 and the diagnostic contracts at `fd5dc5073a0e579de77f9b910fee24beb2c11492`. The workspace shell adopts the token stylesheet. The deeper result and evidence redesign remains a later slice.
+This foundation targets Windows WebView2 and the diagnostic contracts at `fd5dc5073a0e579de77f9b910fee24beb2c11492`. The workspace shell and Result overview adopt the token stylesheet. The deeper Evidence redesign remains a later slice.
 
 ## Users and workflow
 
@@ -54,6 +54,7 @@ Keep `start_diagnosis`, the `started` and `progress` channel events, `cancel_dia
 - Show latency and jitter in milliseconds, loss and Wi-Fi signal in percent, and reported link rates in Mbps. Use per-target summaries such as mean latency, packets sent and received, and loss. `internet.targets_tested` counts completed measurements. Keep unavailable targets listed separately from that count.
 - For DNS, keep the Windows DNS-client result separate from direct primary-interface queries and off-interface resolver inventory. Label cache and policy uncertainty. Preserve interface, address family, IPv6 scope, route evidence, and unknown provisioning provenance.
 - `details.completed` describes coverage. Use `diagnosis.code` for the user-facing conclusion. The current payload contains aggregate values. Use labeled summaries and per-target comparisons, and reserve timelines and hop charts for actual timestamped samples or traceroute data.
+- The Result overview displays confidence as a rule-based engine score out of 100. Its Device, Gateway, and Internet cards summarize separate checks. DNS sits below the path as a resolution check. Full engine findings, including detailed errors, remain available in Evidence.
 
 ## Design system
 
