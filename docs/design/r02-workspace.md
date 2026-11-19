@@ -62,7 +62,7 @@ The [token stylesheet](../../desktop/src/design-tokens.css) contains the propose
 
 Use Segoe UI Variable with local fallbacks. Reserve monospace for addresses and other identifiers. Start with the body token for readable content, smaller text for labels, and a compact title for outcomes. Use the spacing scale consistently rather than resizing controls to fit dense panels. Use the subtle border for dividers and the stronger control border when a boundary is necessary to identify a control. Pair the focus color with a visible offset outline. Preserve focus outlines in forced colors using system colors.
 
-Borrow consistent action placement and hierarchy from [Linear](https://linear.app/now/behind-the-latest-design-refresh), Windows-native affordances from [Fluent and Windows accessibility guidance](https://learn.microsoft.com/en-us/windows/apps/design/accessibility/accessibility-checklist), and clear separation of latency and loss from [PingPlotter](https://www.pingplotter.com/fix-your-network/getting-started/timeline-graphs/). WHYFI should use its own mark and compact visual language. Align the favicon, native icon, window title, and in-app identity when production assets are ready. Prefer flat surfaces, small radii, and meaningful separators.
+Borrow consistent action placement and hierarchy from [Linear](https://linear.app/now/behind-the-latest-design-refresh), Windows-native affordances from [Fluent and Windows accessibility guidance](https://learn.microsoft.com/en-us/windows/apps/design/accessibility/accessibility-checklist), and clear separation of latency and loss from [PingPlotter](https://www.pingplotter.com/fix-your-network/getting-started/timeline-graphs/). WHYFI should use its own mark and compact visual language. Use the same symbol for the favicon, native icons, and in-app identity. See the [brand identity](r02ea-brand.md) for source and generation details. Prefer flat surfaces, small radii, and meaningful separators.
 
 ## Responsive and accessibility acceptance
 
@@ -82,4 +82,4 @@ Borrow consistent action placement and hierarchy from [Linear](https://linear.ap
 
 **Available now:** desktop baseline investigation, cancellation, timeout, retry, result and technical measurements, plus deeper connection-quality analysis through the CLI. **Future only:** persistent history, background monitoring, traceroute, AI assistance, and visual time series. These features require product decisions and, where relevant, new data and permissions. They do not get workspace destinations during R02.
 
-**Open decisions:** confirm the packaged mark and favicon together, and set the enforced minimum native window size after testing snapped layouts and scaling. Neither decision blocks Slice 1.
+**Open decision:** Set the enforced minimum native window size after testing snapped layouts and scaling.
