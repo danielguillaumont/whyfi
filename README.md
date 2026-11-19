@@ -325,14 +325,7 @@ Bundle diagnostic engine
 Create Windows installers
 ```
 
-Current installer outputs:
-
-```text
-whyfi_0.1.0_x64_en-US.msi
-whyfi_0.1.0_x64-setup.exe
-```
-
-The installer has been tested successfully: the installed application launches the bundled diagnostic engine, performs a real network investigation, streams progress, and displays the final result without requiring a Python environment.
+The private Windows x64 candidate uses NSIS. See the [candidate build and acceptance guide](docs/windows-candidate.md) for prerequisites, hashes, and clean-machine checks. Existing installer outputs require separate verification against the candidate commit.
 
 ---
 
@@ -553,7 +546,7 @@ Run the desktop application:
 
 ```powershell
 cd desktop
-npm install
+npm ci
 npm run tauri dev
 ```
 
@@ -600,8 +593,8 @@ The Tauri build automatically rebuilds the Python sidecar before compiling and p
 - [ ] Broader real-world failure testing
 
 ### Toward V1.0
-- [x] Standalone MSI installer
-- [x] Standalone setup EXE
+- [ ] Current MSI candidate deferred (historical MSI artifacts exist)
+- [ ] Fresh NSIS candidate and clean-machine installation verification
 - [x] Production sidecar bridge
 - [x] Automated production build
 - [ ] Broader Windows compatibility testing
@@ -653,7 +646,7 @@ But measurable network evidence will remain the source of truth.
 
 ## Next
 
-The core diagnostic engine, desktop application, sidecar packaging, and Windows installer now work end-to-end.
+The core diagnostic engine, desktop application, and sidecar run in development and standalone smoke tests. Historical installer builds do not establish the current candidate's installed behavior.
 
 The next phase is focused on:
 
