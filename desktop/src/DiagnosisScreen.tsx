@@ -11,7 +11,9 @@ function InvestigationStatus({ state, cancel }: {
       <div className="view-heading diagnosis-heading">
         <h1 tabIndex={-1}>Investigating connection</h1>
         <button className="button button-secondary diagnosis-cancel" type="button"
-          disabled={!state.canCancel} onClick={cancel}>
+          disabled={!state.canCancel && !state.cancelling}
+          aria-disabled={state.cancelling || undefined}
+          onClick={() => { if (state.canCancel) cancel(); }}>
           Cancel
         </button>
       </div>
@@ -36,7 +38,10 @@ export function DiagnosisScreen({ state, start, cancel, preview }: {
 
   const retry = state.phase === "failed" || state.phase === "timed_out";
   const title = state.phase === "timed_out" ? "Investigation timed out"
-    : state.phase === "failed" ? "Investigation could not finish" : "Diagnose connection";
+    : state.phase === "failed" ? "Investigation could not finish"
+    : state.phase === "cancelled" ? "Investigation cancelled" : "Diagnose connection";
+  const cleanupNotice = state.phase === "cancelled"
+    ? state.message.replace(/^Investigation cancelled\.(?:\s+|$)/, "") : "";
 
   return (
     <section className="workspace-view diagnosis-view">
@@ -47,10 +52,10 @@ export function DiagnosisScreen({ state, start, cancel, preview }: {
             : "Find out whether the problem is with your device, local network, or internet connection."}
         </p>
       </div>
-      {state.phase === "cancelled" && (
-        <div className="notice diagnosis-notice" role="status">
+      {cleanupNotice && (
+        <div className="notice diagnosis-notice">
           <span className="notice-icon" aria-hidden="true">i</span>
-          <span>{state.message}</span>
+          <span>{cleanupNotice}</span>
         </div>
       )}
       <div className="workspace-actions">
