@@ -1,5 +1,7 @@
 # WHYFI
 
+![WHYFI Route Focus mark](desktop/public/whyfi.svg)
+
 > **Shazam for broken internet.**
 
 WHYFI is a Windows network diagnostic application that investigates connectivity problems, identifies the most likely failure point, and explains what is happening in plain language.

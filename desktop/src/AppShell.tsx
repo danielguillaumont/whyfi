@@ -36,7 +36,7 @@ export function AppShell({ state, navigate, children }: {
     <>
       <header className="workspace-header">
         <div className="workspace-brand">
-          <span className="brand-mark" aria-hidden="true">W</span>
+          <img className="brand-mark" src="/whyfi.svg" width={28} height={28} alt="" aria-hidden="true" />
           <span>WHYFI</span>
         </div>
         <nav className="workspace-nav" aria-label="Workspace">

@@ -47,13 +47,10 @@ h2 { font-size: 1rem; font-weight: var(--whyfi-weight-emphasis); }
 
 .workspace-brand { font-weight: var(--whyfi-weight-emphasis); letter-spacing: 0.08em; }
 .brand-mark {
-  display: grid;
-  place-items: center;
+  display: block;
+  flex: 0 0 auto;
   inline-size: 1.75rem;
   block-size: 1.75rem;
-  border: var(--whyfi-border-width) solid var(--whyfi-color-control-border);
-  border-radius: var(--whyfi-radius-control);
-  color: var(--whyfi-color-accent);
 }
 .workspace-nav { gap: var(--whyfi-space-1); }
 
