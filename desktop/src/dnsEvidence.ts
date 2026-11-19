@@ -28,14 +28,14 @@ export function resolverEvidenceRows(items: DnsResolverEvidence[] | null | undef
   if (!Array.isArray(items)) return [];
   return items.flatMap((item) => {
     if (!item || typeof item.resolver !== "string" || typeof item.interface_alias !== "string"
-        || typeof item.interface_index !== "number" || typeof item.address_family !== "string") {
+        || typeof item.interface_index !== "number" || !Number.isInteger(item.interface_index) || typeof item.address_family !== "string") {
       return [];
     }
     return [{
       label: `${item.interface_alias} #${item.interface_index} · ${item.resolver}`,
       value: [
         item.address_family,
-        item.primary === true ? "Primary interface" : "Other interface · direct query skipped",
+        item.primary === true ? "Primary interface" : item.primary !== false ? "Interface association unavailable" : "Other interface · direct query skipped",
         item.route_on_interface === true ? "Matching interface route"
           : item.route_on_interface === false ? "No matching interface route" : "Route evidence unavailable",
         typeof item.scope === "string" ? `Scope ${item.scope}` : null,

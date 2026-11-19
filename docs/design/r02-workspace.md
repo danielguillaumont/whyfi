@@ -1,6 +1,6 @@
 # WHYFI R02 workspace specification
 
-This foundation targets Windows WebView2 and the diagnostic contracts at `fd5dc5073a0e579de77f9b910fee24beb2c11492`. The workspace shell and Result overview adopt the token stylesheet. The deeper Evidence redesign remains a later slice.
+This foundation targets Windows WebView2 and the diagnostic contracts at `fd5dc5073a0e579de77f9b910fee24beb2c11492`. The workspace shell, Result overview, and Evidence workspace use the token stylesheet.
 
 ## Users and workflow
 
@@ -43,7 +43,7 @@ A transport failure, cancellation, or timeout is an investigation outcome. A dia
 | `DiagnosisScreen` | Render the ready action and outcome recovery messages. Delegate progress to `InvestigationStatus`. |
 | `InvestigationStatus` | Render the latest progress message, cancellation state, and a polite announcement. No percentage is available in the current protocol. |
 | `ResultOverview` | Read `diagnosis.code`, `title`, `summary`, `recommendation`, `evidence`, and nullable `confidence`. Place the outcome first, then the next action, then supporting observations. Show a few decisive findings first and keep the rest accessible in Evidence. |
-| `TechnicalEvidence` | Group `details.connection` and `local_config` under Device, `wifi` and `gateway` under Local network, `internet.probes` under Internet, and `dns` under DNS. Use `collection_errors[].check`, `target`, and `message` to attach context. Keep unscoped errors visible under Collection notes. |
+| `TechnicalEvidence` | Group `details.connection` and `local_config` under Device, `wifi` and `gateway` under Local network, `internet.probes` under Internet, and `dns` under DNS. Use `collection_errors[].check`, `target`, and `message` to attach context. Keep unscoped errors visible under Collection notes. Jump buttons move focus to the section headings without changing destinations. The public target table keeps its row and column headings in the compact layout, where comparisons stack by target. |
 | Shared primitives | Use native HTML controls for buttons and disclosures, a text-and-icon status label, a metric row with explicit units, and a probe table with headers. Add a shared focus treatment and status-message pattern. |
 
 Keep `start_diagnosis`, the `started` and `progress` channel events, `cancel_diagnosis(runId)`, and the current terminal outcome types. Only a completed outcome contains the validated JSON result. Preserve the sidecar protocol, engine decisions, and Tauri security boundary. Extend the frontend view model to display evidence already in the contract.
