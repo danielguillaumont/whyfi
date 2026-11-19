@@ -1,0 +1,99 @@
+.result-overview {
+  max-inline-size: 48rem;
+}
+
+.result-hero {
+  display: grid;
+  gap: var(--whyfi-space-2);
+}
+
+.result-hero h1 {
+  justify-self: start;
+  font-size: clamp(1.5rem, 5vw, 1.875rem);
+}
+
+.result-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--whyfi-space-3) var(--whyfi-space-4);
+}
+
+.result-next > div:first-child {
+  flex: 1 1 19rem;
+  min-inline-size: 0;
+}
+
+.result-next .workspace-actions {
+  gap: var(--whyfi-space-2);
+}
+
+.connection-checks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: var(--whyfi-space-3) 0 0;
+  padding: 0;
+  border: var(--whyfi-border-width) solid var(--whyfi-color-border);
+  border-radius: var(--whyfi-radius-control);
+  background: var(--whyfi-color-canvas);
+}
+
+.connection-checks > li {
+  min-inline-size: 0;
+  padding: var(--whyfi-space-3);
+}
+
+.connection-checks > li + li {
+  border-inline-start: var(--whyfi-border-width) solid var(--whyfi-color-border);
+}
+
+.result-path h3 {
+  margin: 0 0 var(--whyfi-space-1);
+  font-size: var(--whyfi-text-small);
+  font-weight: var(--whyfi-weight-emphasis);
+}
+
+.check-status {
+  color: var(--whyfi-color-text-secondary);
+  font-weight: var(--whyfi-weight-emphasis);
+}
+
+.check-status-measured { color: var(--whyfi-color-healthy); }
+.check-status-problem { color: var(--whyfi-color-problem); }
+
+.check-measurements {
+  list-style: none;
+  margin: var(--whyfi-space-1) 0 0;
+  padding: 0;
+  color: var(--whyfi-color-text-secondary);
+  font-size: var(--whyfi-text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.result-dns {
+  margin-block-start: var(--whyfi-space-3);
+}
+
+.result-dns h3 {
+  display: inline-block;
+  margin-inline-end: var(--whyfi-space-2);
+}
+
+.result-dns .check-status {
+  display: inline;
+  font-size: var(--whyfi-text-small);
+}
+
+@media (max-width: 38rem) {
+  .connection-checks { grid-template-columns: minmax(0, 1fr); }
+  .connection-checks > li + li {
+    border-inline-start: 0;
+    border-block-start: var(--whyfi-border-width) solid var(--whyfi-color-border);
+  }
+}
+
+@media (forced-colors: active) {
+  .connection-checks, .connection-checks > li + li { border-color: CanvasText; }
+}
