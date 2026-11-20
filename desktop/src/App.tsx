@@ -5,6 +5,7 @@ import { TechnicalEvidence } from "./TechnicalEvidence";
 import { useInvestigation } from "./useInvestigation";
 import "./design-tokens.css";
 import "./App.css";
+import "./Checkline.css";
 
 export default function App() {
   const { state, start, cancel, navigate, preview } = useInvestigation();

@@ -1,0 +1,301 @@
+/* WHYFI / Checkline. Shared layout across soft-light and dark appearances.
+   R04A's experimental gradient stylesheet is not imported. */
+:root {
+  color-scheme: light;
+  font-family: var(--whyfi-font-ui);
+  background: var(--whyfi-color-canvas);
+  color: var(--whyfi-color-text);
+}
+html { min-inline-size: 0; }
+body {
+  min-inline-size: 0;
+  margin: 0;
+  background: var(--whyfi-color-canvas);
+  color: var(--whyfi-color-text);
+  -webkit-font-smoothing: antialiased;
+}
+#root, .checkline-app { min-block-size: 100vh; }
+.checkline-app { display: flex; flex-direction: column; }
+
+/* Workspace chrome: product identity first, no decorative dashboard side rail. */
+.workspace-header {
+  position: sticky;
+  z-index: 10;
+  inset-block-start: 0;
+  display: block;
+  min-block-size: 0;
+  padding: 0;
+  border-block-end: 1px solid var(--whyfi-color-border);
+  background: var(--whyfi-color-surface);
+}
+.checkline-header-inner {
+  min-block-size: 4.875rem;
+  padding: .75rem clamp(1rem, 4vw, 4.5rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1.25rem;
+  max-inline-size: 100rem;
+  margin-inline: auto;
+}
+.workspace-brand { display: inline-flex; align-items: center; flex-wrap: nowrap; gap: .75rem; min-inline-size: 0; }
+.brand-mark { inline-size: 2.375rem; block-size: 2.375rem; flex: 0 0 2.375rem; }
+.checkline-brand-name { display: grid; gap: .22rem; min-inline-size: 0; }
+.checkline-brand-name > span {
+  font: 700 1.5rem/1 var(--whyfi-font-display);
+  letter-spacing: -.035em;
+  white-space: nowrap;
+}
+.checkline-brand-name small { font-size: .625rem; font-weight: 400; letter-spacing: .015em; color: var(--whyfi-color-text-quiet); white-space: nowrap; }
+.workspace-nav {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: .25rem;
+  padding: .25rem;
+  border-radius: .75rem;
+  background: var(--whyfi-color-nav-group);
+}
+.nav-button {
+  min-block-size: 2.5rem;
+  padding: .5rem 1.2rem;
+  border: 0;
+  border-radius: .5625rem;
+  background: transparent;
+  color: var(--whyfi-color-nav-label);
+  font-size: .8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.nav-button[aria-current="page"] {
+  background: var(--whyfi-color-surface);
+  color: var(--whyfi-color-text);
+  box-shadow: 0 1px 4px var(--whyfi-color-shadow);
+}
+.nav-button:disabled { opacity: .48; }
+.nav-button:disabled[aria-current="page"] { opacity: 1; }
+.nav-button:hover:not(:disabled) { background: var(--whyfi-color-nav-hover); }
+.nav-button[aria-current="page"]:hover:not(:disabled) { background: var(--whyfi-color-surface); }
+.checkline-header-context {
+  display: flex; align-items: center; justify-self: end; gap: .55rem;
+  color: var(--whyfi-color-text-quiet); font-size: .75rem; white-space: nowrap;
+}
+.checkline-context-dot { inline-size: .45rem; block-size: .45rem; border-radius: 50%; background: var(--whyfi-color-accent); }
+.workspace-main {
+  inline-size: min(100%, 1236px);
+  max-inline-size: none;
+  margin-inline: auto;
+  padding: clamp(2.25rem, 5vw, 4.75rem) clamp(1.25rem, 4vw, 3rem) 4rem;
+  flex: 1;
+  min-inline-size: 0;
+}
+.workspace-view { min-inline-size: 0; }
+
+/* Universal controls remain recognizable throughout Diagnose, Result and Evidence. */
+.button { border-radius: .625rem; font-weight: 650; }
+.button-primary { color: var(--whyfi-color-on-primary); background: var(--whyfi-color-primary); }
+.button-primary:hover:not(:disabled) { background: var(--whyfi-color-primary-hover); }
+.button-secondary { color: var(--whyfi-color-text); border: 1px solid var(--whyfi-color-control-border); background: transparent; }
+.button-secondary:hover:not(:disabled) { background: var(--whyfi-color-button-hover); border-color: var(--whyfi-color-control-border); }
+:focus-visible { outline: 3px solid var(--whyfi-color-focus); outline-offset: 3px; }
+.result-panel, .notice, .investigation-status { background: var(--whyfi-color-surface); border-color: var(--whyfi-color-border); }
+.result-panel { box-shadow: none; }
+
+/* Diagnose: one answer-focused action, with the checkline as supporting context. */
+.checkline-diagnose.diagnosis-view {
+  display: grid;
+  max-inline-size: none;
+  gap: 0;
+}
+.checkline-intro { display: grid; justify-items: start; gap: 0; max-inline-size: 58rem; }
+.checkline-intro h1 {
+  margin: 0;
+  max-inline-size: 15ch;
+  color: var(--whyfi-color-text);
+  font: 650 clamp(2.65rem, 5.3vw, 4.65rem)/1.08 var(--whyfi-font-display);
+  letter-spacing: -.054em;
+  overflow-wrap: normal;
+}
+.checkline-intro .view-description {
+  max-inline-size: 39rem;
+  margin-block-start: 1.6rem;
+  color: var(--whyfi-color-text-secondary);
+  font-size: clamp(.975rem, 1.6vw, 1.075rem);
+  line-height: 1.66;
+}
+.checkline-cta-area { display: grid; justify-items: start; gap: .7rem; margin-block-start: 1.75rem; }
+.checkline-cta-area .diagnosis-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.4rem;
+  min-inline-size: 15.75rem;
+  min-block-size: 3.85rem;
+  padding: .8rem .85rem .8rem 1.35rem;
+  color: var(--whyfi-color-on-primary);
+  background: var(--whyfi-color-primary);
+  border: 0;
+  border-radius: .75rem;
+  font-size: .95rem;
+  font-weight: 700;
+  box-shadow: 0 10px 24px var(--whyfi-color-shadow-soft);
+}
+.checkline-cta-area .diagnosis-start:hover { background: var(--whyfi-color-primary-hover); }
+.checkline-cta-mark {
+  flex: 0 0 1.875rem; inline-size: 1.875rem; block-size: 1.875rem;
+  display: grid; place-items: center; border-radius: .5rem;
+  background: var(--whyfi-color-accent); color: var(--whyfi-color-on-accent);
+}
+.checkline-cta-note { margin-inline-start: .25rem; color: var(--whyfi-color-text-quiet); font-size: .73rem; }
+.checkline-coverage { border-block-start: 1px solid var(--whyfi-color-border); margin-block-start: 2.6rem; }
+.checkline-coverage-heading {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+  padding: 1.65rem 0 1.4rem;
+}
+.checkline-coverage-heading h2 { font-size: .875rem; font-weight: 700; }
+.checkline-coverage-heading p { color: var(--whyfi-color-text-quiet); font-size: .78rem; }
+.checkline-rail {
+  list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  position: relative; gap: .3rem; min-inline-size: 0; margin: 0; padding: .25rem 0 .2rem;
+}
+.checkline-rail::before {
+  content: ""; position: absolute; top: .91rem; left: .65rem;
+  right: calc(25% - .65rem); block-size: 2px; background: var(--whyfi-color-line);
+}
+.checkline-rail li { position: relative; min-inline-size: 0; padding-inline-end: 1.1rem; }
+.checkline-rail-node {
+  display: block; position: relative; inline-size: 1.375rem; block-size: 1.375rem;
+  margin-block-end: 1.25rem; border-radius: 50%; border: 2px solid var(--whyfi-color-line-node);
+  background: var(--whyfi-color-surface);
+}
+.checkline-rail-node::after {
+  content: ""; position: absolute; inset: .31rem; border-radius: 50%; background: var(--whyfi-color-line-center);
+}
+.checkline-rail h3 { margin: 0; font: 630 clamp(1.05rem, 1.8vw, 1.35rem)/1.25 var(--whyfi-font-display); letter-spacing: -.018em; }
+.checkline-rail p { margin-block-start: .4rem; color: var(--whyfi-color-text-secondary); font-size: .79rem; line-height: 1.5; }
+.checkline-untested { display: block; margin-block-start: .8rem; color: var(--whyfi-color-text-quiet); font-size: .77rem; }
+.checkline-help {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .65rem 1.6rem;
+  margin-block-start: 3.25rem; padding-block-start: 1.5rem;
+  border-block-start: 1px solid var(--whyfi-color-border); color: var(--whyfi-color-text-secondary); font-size: .815rem;
+}
+.checkline-help strong { color: var(--whyfi-color-text); }
+.checkline-dev-previews { margin-block-start: 2.5rem; color: var(--whyfi-color-text-quiet); font-size: .76rem; }
+.checkline-dev-previews summary { display: inline-block; cursor: pointer; }
+.checkline-dev-previews .workspace-actions { margin-block-start: .75rem; }
+.checkline-dev-previews .button { font-size: .75rem; }
+.checkline-pill {
+  display: inline-flex; align-items: center; gap: .55rem;
+  border-radius: 4rem; background: var(--whyfi-color-healthy-soft); color: var(--whyfi-color-healthy);
+  padding: .3rem .65rem; font-size: .78rem; font-weight: 650;
+  margin-block-end: 1.4rem;
+}
+.checkline-pill-dot { inline-size: .45rem; block-size: .45rem; background: var(--whyfi-color-accent); border-radius: 50%; }
+.checkline-pill-attention { color: var(--whyfi-color-problem); background: var(--whyfi-color-problem-soft); }
+.checkline-pill-neutral { color: var(--whyfi-color-text-secondary); background: var(--whyfi-color-note-neutral); }
+.checkline-recovery { inline-size: min(100%, 40rem); margin-block-start: 1.25rem; }
+.checkline-diagnose .diagnosis-notice { margin-block-start: 1.5rem; }
+
+/* Running: actual engine progress only; no simulated stage progress. */
+.checkline-running .checkline-intro h1 { max-inline-size: 20ch; }
+.checkline-run-activity {
+  display: flex; align-items: center; gap: 1.3rem; min-inline-size: 0;
+  margin-block-start: 3.2rem; padding: 2rem 0;
+  border-block: 1px solid var(--whyfi-color-border);
+}
+.checkline-run-indicator {
+  flex: 0 0 3rem; inline-size: 3rem; block-size: 3rem;
+  display: grid; place-items: center; border: 2px solid var(--whyfi-color-accent);
+  border-radius: 50%;
+}
+.checkline-run-indicator .working-indicator {
+  inline-size: 1.1rem; block-size: 1.1rem;
+  border: 2px solid var(--whyfi-color-line-node); border-inline-start-color: var(--whyfi-color-accent-deep);
+}
+.checkline-run-copy { min-inline-size: 0; flex: 1 1 auto; }
+.checkline-run-copy h2 { font-size: .78rem; color: var(--whyfi-color-text-quiet); font-weight: 600; }
+.checkline-run-copy p { margin-block-start: .3rem; font: 600 clamp(1rem, 2vw, 1.3rem)/1.35 var(--whyfi-font-display); overflow-wrap: anywhere; }
+.checkline-run-activity .diagnosis-cancel { flex: 0 0 auto; padding: .75rem 1.2rem; }
+.checkline-run-footnote { margin-block-start: 1.25rem; color: var(--whyfi-color-text-secondary); font-size: .815rem; }
+
+@media (max-width: 60rem) {
+  .checkline-header-inner { padding-inline: 1.5rem; }
+  .checkline-brand-name small { display: none; }
+  .workspace-main { padding-inline: 1.75rem; }
+}
+@media (max-width: 47.5rem) {
+  .workspace-header { position: static; }
+  .checkline-header-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "brand context" "nav nav";
+    gap: .8rem;
+    padding: 1rem 1.25rem .75rem;
+  }
+  .workspace-brand { grid-area: brand; }
+  .workspace-nav { grid-area: nav; width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .workspace-nav .nav-button { padding: .65rem .35rem; }
+  .checkline-header-context { grid-area: context; }
+  .workspace-main { padding: 2.4rem 1.25rem 3rem; }
+  .checkline-intro h1 { font-size: clamp(2.5rem, 8vw, 3.45rem); }
+  .checkline-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.8rem 1rem; }
+  .checkline-rail::before { display: none; }
+  .checkline-rail-node { margin-block-end: .65rem; }
+  .checkline-help { margin-block-start: 2.4rem; }
+}
+@media (max-width: 29rem) {
+  .workspace-main { padding-inline: 1rem; }
+  .checkline-header-inner { padding-inline: 1rem; }
+  .checkline-header-context span:last-child { display: none; }
+  .checkline-brand-name > span { font-size: 1.375rem; }
+  .checkline-intro h1 { font-size: 2.5rem; }
+  .checkline-coverage-heading { align-items: flex-start; }
+  .checkline-rail li { padding-inline-end: .2rem; }
+  .checkline-rail h3 { font-size: 1.08rem; }
+  .checkline-run-activity { flex-wrap: wrap; gap: 1rem; }
+  .checkline-run-copy { flex-basis: calc(100% - 4.5rem); }
+  .checkline-run-activity .diagnosis-cancel { margin-inline-start: 4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .checkline-run-indicator .working-indicator { animation: none; }
+}
+@media (forced-colors: active) {
+  .workspace-header, .checkline-coverage, .checkline-help, .checkline-run-activity { border-color: CanvasText; }
+  .checkline-rail-node, .checkline-run-indicator { border-color: Highlight; }
+  .checkline-rail-node::after, .checkline-context-dot { background: Highlight; }
+  .nav-button[aria-current="page"], .button-primary { border: 2px solid ButtonText; }
+}
+
+/* R04E: appearance selection lives in the header, not in a settings dialog. */
+.checkline-header-end {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: clamp(.6rem, 1.5vw, 1.4rem);
+  min-inline-size: 0;
+}
+.checkline-appearance { display: inline-flex; align-items: center; gap: .45rem; color: var(--whyfi-color-text-quiet); font-size: .75rem; white-space: nowrap; }
+.checkline-appearance select {
+  min-block-size: 2.3rem;
+  max-inline-size: 7.1rem;
+  padding: .45rem .6rem;
+  border: 1px solid var(--whyfi-color-border);
+  border-radius: .55rem;
+  background: var(--whyfi-color-surface);
+  color: var(--whyfi-color-text);
+  font: 600 .79rem/1.2 var(--whyfi-font-ui);
+  cursor: pointer;
+}
+.checkline-appearance select:hover { border-color: var(--whyfi-color-control-border); }
+.checkline-appearance select:focus-visible { outline: 3px solid var(--whyfi-color-focus); outline-offset: 2px; }
+@media (max-width: 65rem) {
+  .checkline-header-context { display: none; }
+}
+@media (max-width: 47.5rem) {
+  .checkline-header-end { grid-area: context; }
+  .checkline-appearance > span { display: none; }
+}
+@media (forced-colors: active) {
+  .checkline-appearance select { border-color: ButtonText; background: Field; color: FieldText; }
+  .checkline-pill, .checkline-pill-attention, .checkline-pill-neutral { border: 1px solid CanvasText; }
+  .checkline-cta-mark { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+}

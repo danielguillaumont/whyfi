@@ -9,7 +9,7 @@ type SectionKey = typeof evidenceSections[number][0];
 function Rows({ rows }: { rows: Evidence["device"][number]["rows"] }) {
   return <dl className="technical-rows">
     {rows.map(({ label, value, technical }, index) => (
-      <div key={index}>
+      <div key={index} className={value === "Unavailable" || value === "Not assessed" ? "technical-row-unavailable" : undefined}>
         <dt>{label}</dt>
         <dd>{technical && value !== "Unavailable" ? <code>{value}</code> : value}</dd>
       </div>
@@ -38,7 +38,7 @@ function SectionNotes({ notes, heading }: { notes: Evidence["notes"]["device"]; 
 function EvidenceSection({ id, label, notes, children }: {
   id: SectionKey; label: string; notes: Evidence["notes"]["device"]; children: ReactNode;
 }) {
-  return <section className="result-panel technical-section" aria-labelledby={`evidence-${id}`}>
+  return <section className="technical-section" aria-labelledby={`evidence-${id}`}>
     <h2 id={`evidence-${id}`} tabIndex={-1}>{label}</h2>
     {children}
     <SectionNotes notes={notes} heading="h3" />
@@ -143,37 +143,48 @@ export function TechnicalEvidence({ details, findings, onBack }: {
     ? findings.filter(item => typeof item === "string" && item.trim().length > 0)
     : [];
   return (
-    <section className="workspace-view technical-workspace">
-      <div className="view-heading">
-        <h1 tabIndex={-1}>Technical evidence</h1>
-        <button className="button button-secondary" type="button" onClick={onBack}>Back to result</button>
+    <section className="workspace-view technical-workspace checkline-evidence">
+      <header className="checkline-evidence-header">
+        <div className="checkline-evidence-intro">
+          <p className="checkline-evidence-overline">The details behind your result</p>
+          <h1 tabIndex={-1}>Technical evidence</h1>
+          <p className="checkline-evidence-lede">Review the measurements, sources and limitations from this connection check.</p>
+        </div>
+        <button className="button button-secondary checkline-evidence-back" type="button" onClick={onBack}>Back to result</button>
+      </header>
+      <div className="checkline-evidence-layout">
+        <nav className="technical-nav checkline-evidence-index" aria-label="Evidence sections">
+          <p className="checkline-evidence-index-title">Jump to a section</p>
+          {evidenceSections.map(([id, label], index) => (
+            <button key={id} className="checkline-evidence-index-link" type="button" onClick={() => jumpToSection(id)}>
+              <span aria-hidden="true" className="checkline-evidence-index-number">{String(index + 1).padStart(2, "0")}</span>
+              {label}
+            </button>
+          ))}
+          <p className="checkline-evidence-index-help">Evidence is from one investigation, not continuous monitoring.</p>
+        </nav>
+        <div className="checkline-evidence-document">
+          {engineFindings.length > 0 && <section className="checkline-evidence-findings" aria-labelledby="evidence-findings-heading">
+            <h2 id="evidence-findings-heading">Diagnosis findings</h2>
+            <ul className="findings">{engineFindings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+          </section>}
+          <EvidenceSection id="device" label="Device" notes={evidence.notes.device}>
+            {evidence.device.map(group => <MeasurementGroup key={group.title} group={group} />)}
+          </EvidenceSection>
+          <EvidenceSection id="local-network" label="Local network" notes={evidence.notes["local-network"]}>
+            {evidence.localNetwork.map(group => <MeasurementGroup key={group.title} group={group} />)}
+          </EvidenceSection>
+          <EvidenceSection id="internet" label="Internet" notes={evidence.notes.internet}>
+            <InternetMeasurements internet={evidence.internet} />
+          </EvidenceSection>
+          <EvidenceSection id="dns" label="DNS" notes={evidence.notes.dns}>
+            <DnsMeasurements dns={evidence.dns} />
+          </EvidenceSection>
+          {evidence.notes.unscoped.length > 0 && <section className="checkline-evidence-extra-notes" aria-label="Other collection notes">
+            <SectionNotes notes={evidence.notes.unscoped} heading="h2" />
+          </section>}
+        </div>
       </div>
-      <nav className="technical-nav" aria-label="Evidence sections">
-        {evidenceSections.map(([id, label]) => (
-          <button key={id} className="button button-secondary" type="button" onClick={() => jumpToSection(id)}>
-            {label}
-          </button>
-        ))}
-      </nav>
-      {engineFindings.length > 0 && <section className="result-panel">
-        <h2>Diagnosis findings</h2>
-        <ul className="findings">{engineFindings.map((item, index) => <li key={index}>{item}</li>)}</ul>
-      </section>}
-      <EvidenceSection id="device" label="Device" notes={evidence.notes.device}>
-        {evidence.device.map(group => <MeasurementGroup key={group.title} group={group} />)}
-      </EvidenceSection>
-      <EvidenceSection id="local-network" label="Local network" notes={evidence.notes["local-network"]}>
-        {evidence.localNetwork.map(group => <MeasurementGroup key={group.title} group={group} />)}
-      </EvidenceSection>
-      <EvidenceSection id="internet" label="Internet" notes={evidence.notes.internet}>
-        <InternetMeasurements internet={evidence.internet} />
-      </EvidenceSection>
-      <EvidenceSection id="dns" label="DNS" notes={evidence.notes.dns}>
-        <DnsMeasurements dns={evidence.dns} />
-      </EvidenceSection>
-      {evidence.notes.unscoped.length > 0 && <section className="result-panel">
-        <SectionNotes notes={evidence.notes.unscoped} heading="h2" />
-      </section>}
     </section>
   );
 }
