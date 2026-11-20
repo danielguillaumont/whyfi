@@ -2,28 +2,59 @@ import { DEV_PREVIEW_DIAGNOSES } from "./diagnosisPreviews";
 import type { Diagnosis } from "./diagnosticTypes";
 import type { WorkspaceState } from "./workspaceState";
 
+const checkAreas = [
+  { title: "Device", explanation: "Adapter and IP configuration" },
+  { title: "Local network", explanation: "Wi-Fi and gateway response" },
+  { title: "Internet", explanation: "Public target reachability" },
+  { title: "DNS", explanation: "Windows and resolver lookups" },
+] as const;
+
+function ChecklineCoverage() {
+  return (
+    <section className="checkline-coverage" aria-labelledby="checkline-coverage-title">
+      <div className="checkline-coverage-heading">
+        <h2 id="checkline-coverage-title">What gets checked</h2>
+        <p>Four areas · Not measured yet</p>
+      </div>
+      <ol className="checkline-rail" aria-label="Areas of network investigation">
+        {checkAreas.map(({ title, explanation }) => (
+          <li key={title}>
+            <span className="checkline-rail-node" aria-hidden="true" />
+            <h3>{title}</h3>
+            <p>{explanation}</p>
+            <span className="checkline-untested">Not checked</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function InvestigationStatus({ state, cancel }: {
   state: Extract<WorkspaceState, { phase: "running" }>;
   cancel: () => void;
 }) {
   return (
-    <section className="workspace-view diagnosis-view">
-      <div className="view-heading diagnosis-heading">
-        <h1 tabIndex={-1}>Investigating connection</h1>
+    <section className="workspace-view diagnosis-view checkline-diagnose checkline-running">
+      <div className="checkline-intro">
+        <span className="checkline-pill"><span className="checkline-pill-dot" aria-hidden="true" /> Check in progress</span>
+        <h1 tabIndex={-1}>Checking your connection.</h1>
+        <p className="view-description">Gathering connection measurements. WHYFI will report what the available evidence actually supports.</p>
+      </div>
+      <section className="checkline-run-activity" aria-label="Investigation activity">
+        <span className="checkline-run-indicator" aria-hidden="true"><span className="working-indicator" /></span>
+        <div className="checkline-run-copy">
+          <h2>Current activity</h2>
+          <p role="status">{state.progress}</p>
+        </div>
         <button className="button button-secondary diagnosis-cancel" type="button"
           disabled={!state.canCancel && !state.cancelling}
           aria-disabled={state.cancelling || undefined}
           onClick={() => { if (state.canCancel) cancel(); }}>
           Cancel
         </button>
-      </div>
-      <div className="investigation-status">
-        <span className="activity-icon" aria-hidden="true"><span className="working-indicator" /></span>
-        <div className="activity-copy">
-          <h2>Current activity</h2>
-          <p role="status">{state.progress}</p>
-        </div>
-      </div>
+      </section>
+      <p className="checkline-run-footnote">Results stay on this device. The network tests generate DNS and ICMP traffic.</p>
     </section>
   );
 }
@@ -39,48 +70,57 @@ export function DiagnosisScreen({ state, start, cancel, preview }: {
   const retry = state.phase === "failed" || state.phase === "timed_out";
   const title = state.phase === "timed_out" ? "Investigation timed out"
     : state.phase === "failed" ? "Investigation could not finish"
-    : state.phase === "cancelled" ? "Investigation cancelled" : "Diagnose connection";
+    : state.phase === "cancelled" ? "Investigation cancelled" : "Find out what's not working.";
   const cleanupNotice = state.phase === "cancelled"
     ? state.message.replace(/^Investigation cancelled\.(?:\s+|$)/, "") : "";
+  const description = retry
+    ? "The previous check didn't finish. Try again to collect a fresh set of measurements."
+    : state.phase === "cancelled"
+      ? "No conclusion was recorded. You can start another check whenever you're ready."
+      : "WHYFI checks your device, local network, public reachability, and DNS. You get a clear answer when the evidence supports one.";
 
   return (
-    <section className="workspace-view diagnosis-view">
-      <div className="diagnosis-intro">
+    <section className="workspace-view diagnosis-view checkline-diagnose">
+      <div className="checkline-intro">
+        {retry && <span className="checkline-pill checkline-pill-attention">Check incomplete</span>}
+        {state.phase === "cancelled" && <span className="checkline-pill checkline-pill-neutral">Stopped</span>}
         <h1 tabIndex={-1}>{title}</h1>
-        <p className="view-description">
-          {retry ? "Try the diagnosis again to collect a fresh set of measurements."
-            : "Find out whether the problem is with your device, local network, or internet connection."}
-        </p>
-      </div>
-      {cleanupNotice && (
-        <div className="notice diagnosis-notice">
-          <span className="notice-icon" aria-hidden="true">i</span>
-          <span>{cleanupNotice}</span>
+        <p className="view-description">{description}</p>
+        {cleanupNotice && (
+          <div className="notice diagnosis-notice">
+            <span className="notice-icon" aria-hidden="true">i</span>
+            <span>{cleanupNotice}</span>
+          </div>
+        )}
+        <div className="checkline-cta-area">
+          <button className="button button-primary diagnosis-start" type="button" onClick={start}>
+            {retry ? "Try again" : state.phase === "cancelled" ? "Start diagnosis" : "Check my connection"}
+            <span className="checkline-cta-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
+                <path d="M3 17h6l6-10h6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="3" cy="17" r="2" fill="currentColor" />
+                <circle cx="21" cy="7" r="2" fill="currentColor" />
+              </svg>
+            </span>
+          </button>
+          <p className="checkline-cta-note">No account. No automatic report upload.</p>
         </div>
-      )}
-      <div className="workspace-actions">
-        <button className="button button-primary diagnosis-start" type="button" onClick={start}>
-          {retry ? "Try again" : "Start diagnosis"}
-        </button>
+        {retry && (
+          <details className="result-panel recovery-details checkline-recovery" open={state.phase === "timed_out"}>
+            <summary>Investigation details</summary>
+            <p>{state.message}</p>
+          </details>
+        )}
       </div>
-      {retry && (
-        <details className="result-panel recovery-details" open={state.phase === "timed_out"}>
-          <summary>Investigation details</summary>
-          <p>{state.message}</p>
-        </details>
-      )}
-      {!retry && (
-        <section className="result-panel check-panel">
-          <h2>What WHYFI checks</h2>
-          <dl>
-            <div><dt>Device</dt><dd>Network adapter and IP settings</dd></div>
-            <div><dt>Local network</dt><dd>Wi-Fi signal and whether your router responds</dd></div>
-            <div><dt>Internet and DNS</dt><dd>Whether public IPs respond and names resolve</dd></div>
-          </dl>
-        </section>
-      )}
+
+      {!retry && <ChecklineCoverage />}
+      <div className="checkline-help">
+        <strong>One check. A clearer next step.</strong>
+        <span>Results stay on this device. Tests generate network probes.</span>
+      </div>
+
       {import.meta.env.DEV && !retry && (
-        <details className="result-panel recovery-details">
+        <details className="checkline-dev-previews">
           <summary>Development result previews</summary>
           <div className="workspace-actions">
             {DEV_PREVIEW_DIAGNOSES.map((sample) => (

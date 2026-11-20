@@ -2,9 +2,11 @@
 
 WHYFI is a local-first Windows desktop app for diagnosing network connectivity. It checks your device, gateway, public IP reachability, and DNS, then explains where the evidence points. When the available evidence cannot support a reliable conclusion, it reports an inconclusive result.
 
-![WHYFI on Windows showing the Diagnose workspace, Start diagnosis button, and the checks it runs](docs/screenshots/diagnose-windows.jpg)
+![WHYFI Result workspace after a real Windows connection diagnosis in dark appearance](docs/screenshots/whyfi-result-dark.png)
 
-*Native Windows capture of the Ready screen from a local Tauri smoke build.*
+*Real Windows diagnosis in the Checkline Result workspace. A private resolver address is redacted; all other displayed measurements are from the captured run.*
+
+More views: [Diagnose](docs/screenshots/whyfi-diagnose-dark.png) · [Technical Evidence](docs/screenshots/whyfi-evidence-dark.png) · [Full Result window](docs/screenshots/whyfi-result-dark-full.png).
 
 ## What it does
 
@@ -12,7 +14,7 @@ WHYFI is a local-first Windows desktop app for diagnosing network connectivity. 
 - **Result** shows the rule-based conclusion, supporting measurements, and a next action when available. The engine score is a rule-based indicator. Missing measurements stay distinct from measured zero or a confirmed failure.
 - **Evidence** shows device and local network details, per-target internet measurements, and DNS evidence. It separates the Windows DNS-client lookup, direct primary-interface resolver queries, and resolver inventory on other interfaces.
 
-The desktop streams progress as checks run and supports cancellation, an overall timeout, and retry. The [CLI guide](docs/diagnostics.md) covers baseline checks, deeper connection-quality testing, and JSON output.
+The desktop streams progress as checks run and supports cancellation, an overall timeout, and retry. Its appearance can follow Windows or be explicitly set to Light or Dark; that preference is saved locally. The [CLI guide](docs/diagnostics.md) covers baseline checks, deeper connection-quality testing, and JSON output.
 
 ## How it works
 

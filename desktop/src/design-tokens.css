@@ -1,21 +1,40 @@
-/* R02 foundation. Import only when the workspace adopts these tokens. */
+/* WHYFI R04E: a single semantic appearance system for all Checkline screens. */
 :root {
-  --whyfi-color-canvas: #101319;
-  --whyfi-color-surface: #171c24;
-  --whyfi-color-surface-raised: #202632;
-  --whyfi-color-border: #303a49;
-  --whyfi-color-control-border: #697a90;
-  --whyfi-color-text: #eef3fa;
-  --whyfi-color-text-secondary: #aebacd;
-  --whyfi-color-accent: #84ceef;
-  --whyfi-color-on-accent: #101319;
-  --whyfi-color-healthy: #86d6b2;
-  --whyfi-color-problem: #ffc48a;
-  --whyfi-color-inconclusive: #c1c9d7;
-  --whyfi-color-error: #ff9eaa;
-  --whyfi-color-focus: #a9dfff;
-
-  --whyfi-font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+  --whyfi-color-canvas: #f1f5f4;
+  --whyfi-color-surface: #fafbf9;
+  --whyfi-color-surface-raised: #e6eeec;
+  --whyfi-color-border: #cfddda;
+  --whyfi-color-control-border: #93aaa8;
+  --whyfi-color-text: #19272b;
+  --whyfi-color-text-secondary: #52686b;
+  --whyfi-color-text-quiet: #5f7376;
+  --whyfi-color-accent: #438f8a;
+  --whyfi-color-accent-deep: #087d70;
+  --whyfi-color-on-accent: #0a2926;
+  --whyfi-color-healthy: #176d58;
+  --whyfi-color-healthy-soft: #deeee7;
+  --whyfi-color-problem: #a63d38;
+  --whyfi-color-problem-soft: #fae9e6;
+  --whyfi-color-inconclusive: #705383;
+  --whyfi-color-inconclusive-soft: #efebf4;
+  --whyfi-color-error: #a63d38;
+  --whyfi-color-focus: #0b7d73;
+  --whyfi-color-primary: #19272b;
+  --whyfi-color-primary-hover: #31464a;
+  --whyfi-color-on-primary: #ffffff;
+  --whyfi-color-nav-group: #e6eeec;
+  --whyfi-color-nav-label: #3c5559;
+  --whyfi-color-nav-hover: #d9e5e2;
+  --whyfi-color-line: #a5b8b7;
+  --whyfi-color-line-node: #879e9f;
+  --whyfi-color-line-center: #b6c8c6;
+  --whyfi-color-button-hover: #e4edeb;
+  --whyfi-color-note-neutral: #e3edeb;
+  --whyfi-color-shadow: rgba(25, 39, 43, .11);
+  --whyfi-color-shadow-soft: rgba(25, 39, 43, .07);
+  --whyfi-font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --whyfi-font-display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", sans-serif;
   --whyfi-font-data: "Cascadia Mono", Consolas, monospace;
   --whyfi-text-small: 0.875rem;
   --whyfi-text-body: 1rem;
@@ -23,17 +42,84 @@
   --whyfi-text-line-height: 1.5;
   --whyfi-title-line-height: 1.25;
   --whyfi-weight-emphasis: 600;
-
-  --whyfi-space-1: 0.25rem;
-  --whyfi-space-2: 0.5rem;
-  --whyfi-space-3: 0.75rem;
+  --whyfi-space-1: .25rem;
+  --whyfi-space-2: .5rem;
+  --whyfi-space-3: .75rem;
   --whyfi-space-4: 1rem;
   --whyfi-space-6: 1.5rem;
   --whyfi-space-8: 2rem;
   --whyfi-control-min-height: 2.25rem;
   --whyfi-border-width: 1px;
-  --whyfi-radius-control: 0.375rem;
-  --whyfi-radius-panel: 0.625rem;
-  --whyfi-focus-width: 2px;
-  --whyfi-focus-offset: 2px;
+  --whyfi-radius-control: .5625rem;
+  --whyfi-radius-panel: .625rem;
+  --whyfi-focus-width: 3px;
+  --whyfi-focus-offset: 3px;
+}
+
+:root[data-whyfi-theme="dark"] {
+  color-scheme: dark;
+  --whyfi-color-canvas: #121b1f;
+  --whyfi-color-surface: #1b282c;
+  --whyfi-color-surface-raised: #26373b;
+  --whyfi-color-border: #344a4d;
+  --whyfi-color-control-border: #7d9899;
+  --whyfi-color-text: #e7f0ef;
+  --whyfi-color-text-secondary: #b3c8c8;
+  --whyfi-color-text-quiet: #a4bdbb;
+  --whyfi-color-accent: #68c2b9;
+  --whyfi-color-accent-deep: #91e0d5;
+  --whyfi-color-on-accent: #112b2b;
+  --whyfi-color-healthy: #87dabe;
+  --whyfi-color-healthy-soft: #1d4036;
+  --whyfi-color-problem: #f2aaa4;
+  --whyfi-color-problem-soft: #472c30;
+  --whyfi-color-inconclusive: #d7b7ed;
+  --whyfi-color-inconclusive-soft: #3b3248;
+  --whyfi-color-error: #f2aaa4;
+  --whyfi-color-focus: #a1f2e5;
+  --whyfi-color-primary: #a8e3d9;
+  --whyfi-color-primary-hover: #c4f0e9;
+  --whyfi-color-on-primary: #112a2d;
+  --whyfi-color-nav-group: #283b3e;
+  --whyfi-color-nav-label: #c5d9d7;
+  --whyfi-color-nav-hover: #33494c;
+  --whyfi-color-line: #5b797b;
+  --whyfi-color-line-node: #94b6b4;
+  --whyfi-color-line-center: #557175;
+  --whyfi-color-button-hover: #2a4143;
+  --whyfi-color-note-neutral: #304349;
+  --whyfi-color-shadow: rgba(0, 0, 0, .3);
+  --whyfi-color-shadow-soft: rgba(0, 0, 0, .2);
+}
+
+/* Leave Windows high-contrast colors to the OS, independent of theme choice. */
+@media (forced-colors: active) {
+  :root, :root[data-whyfi-theme="dark"] {
+    --whyfi-color-canvas: Canvas;
+    --whyfi-color-surface: Canvas;
+    --whyfi-color-surface-raised: Canvas;
+    --whyfi-color-border: CanvasText;
+    --whyfi-color-control-border: ButtonText;
+    --whyfi-color-text: CanvasText;
+    --whyfi-color-text-secondary: CanvasText;
+    --whyfi-color-text-quiet: CanvasText;
+    --whyfi-color-accent: Highlight;
+    --whyfi-color-accent-deep: Highlight;
+    --whyfi-color-healthy: CanvasText;
+    --whyfi-color-problem: CanvasText;
+    --whyfi-color-inconclusive: CanvasText;
+    --whyfi-color-focus: Highlight;
+    --whyfi-color-primary: ButtonFace;
+    --whyfi-color-primary-hover: ButtonFace;
+    --whyfi-color-on-primary: ButtonText;
+    --whyfi-color-nav-group: Canvas;
+    --whyfi-color-nav-label: CanvasText;
+    --whyfi-color-nav-hover: Canvas;
+    --whyfi-color-line: CanvasText;
+    --whyfi-color-line-node: CanvasText;
+    --whyfi-color-line-center: CanvasText;
+    --whyfi-color-button-hover: Canvas;
+    --whyfi-color-shadow: transparent;
+    --whyfi-color-shadow-soft: transparent;
+  }
 }
